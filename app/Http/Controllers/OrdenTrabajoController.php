@@ -114,7 +114,7 @@ class OrdenTrabajoController extends Controller
 
     public function show($id)
     {
-        $orden = OrdenTrabajo::findOrFail($id);
+        $orden = OrdenTrabajo::with('bodegaPrincipal')->findOrFail($id);
         return response()->json(['success' => true, 'orden' => $orden]);
     }
 

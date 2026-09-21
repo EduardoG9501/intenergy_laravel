@@ -2,6 +2,15 @@
 
 @section('title', 'Órdenes de Trabajo - Intenergy')
 
+@section('styles')
+<style>
+    .table-responsive .dropdown-menu {
+        position: fixed !important;
+        z-index: 9999 !important;
+    }
+</style>
+@endsection
+
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
@@ -153,12 +162,9 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">LUGAR: *</label>
-                            <select class="form-select" name="id_bodega_principal" id="add_id_bodega_principal" required>
-                                <option value="" disabled>Selecciona Lugar</option>
-                                @foreach($bodegasPrincipales as $bp)
-                                    <option value="{{ $bp->id_bodega }}" @if(session('bodega_seleccionada') == $bp->id_bodega) selected @endif>{{ $bp->nombreBodega }}</option>
-                                @endforeach
-                            </select>
+                            @php $bodegaActual = $bodegasPrincipales->firstWhere('id_bodega', session('bodega_seleccionada')); @endphp
+                            <input type="text" class="form-control bg-light" value="{{ $bodegaActual?->nombreBodega ?? 'Sin bodega seleccionada' }}" readonly>
+                            <input type="hidden" name="id_bodega_principal" value="{{ session('bodega_seleccionada') }}">
                             <input type="hidden" name="id_bodega_secundaria" id="add_id_bodega_secundaria" value="">
                         </div>
                         <div class="col-md-12">
@@ -213,12 +219,8 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">LUGAR: *</label>
-                            <select class="form-select" name="id_bodega_principal" id="edit_id_bodega_principal" required>
-                                <option value="" disabled>Selecciona Lugar</option>
-                                @foreach($bodegasPrincipales as $bp)
-                                    <option value="{{ $bp->id_bodega }}">{{ $bp->nombreBodega }}</option>
-                                @endforeach
-                            </select>
+                            <input type="text" class="form-control bg-light" id="edit_lugar_nombre" readonly>
+                            <input type="hidden" name="id_bodega_principal" id="edit_id_bodega_principal">
                             <input type="hidden" name="id_bodega_secundaria" id="edit_id_bodega_secundaria" value="">
                         </div>
                         <div class="col-md-6">
@@ -338,6 +340,7 @@
                 document.getElementById('edit_fecha_inicial').value = r.orden.fecha_inicial;
                 document.getElementById('edit_fecha_final').value = r.orden.fecha_final;
                 document.getElementById('edit_id_bodega_principal').value = r.orden.id_bodega_principal;
+                document.getElementById('edit_lugar_nombre').value = r.orden.bodega_principal?.nombreBodega || 'Sin bodega';
                 document.getElementById('edit_id_bodega_secundaria').value = r.orden.id_bodega_secundaria || '';
                 document.getElementById('edit_id_estado_orden').value = r.orden.id_estado_orden;
                 document.getElementById('edit_observacion').value = r.orden.observacion || '';
