@@ -83,6 +83,18 @@
 
     <!-- Sub-tabs del Informe -->
     <div class="col-lg-8">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="fw-bold mb-0">Contenido del Informe</h4>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-success fw-semibold" id="exportInformeCompleto">
+                    <i class="fa-solid fa-file-excel me-1"></i> Exportar Todo (Excel)
+                </button>
+                <button type="button" class="btn btn-sm btn-danger fw-semibold" id="exportInformeCompletoPDF">
+                    <i class="fa-solid fa-file-pdf me-1"></i> Exportar Todo (PDF)
+                </button>
+            </div>
+        </div>
+
         <ul class="nav nav-tabs nav-fill mb-4" id="informeTabs" role="tablist">
             <li class="nav-item" role="presentation">
                 <button class="nav-link active fw-bold" id="tab-empleados" data-bs-toggle="tab" data-bs-target="#pane-empleados" type="button" role="tab" aria-controls="pane-empleados" aria-selected="true">
@@ -498,5 +510,114 @@
             .then(r => r.success ? toast('Descripción eliminada', 'pane-descripcion') : Swal.fire('Error', r.mensaje, 'error'));
         });
     }
+
+    // === EXPORT COMPLETO INFORME ===
+    var informeData = {
+        id: 'INF-{{ str_pad($informe->id_informe_diario_ejecucion, 5, '0', STR_PAD_LEFT) }}',
+        fecha: '{{ \Carbon\Carbon::parse($informe->fecha)->format("d/m/Y") }}',
+        descripcion: '{!! addslashes($informe->descripcion ?: "Sin descripción") !!}',
+        observacion: '{!! addslashes($informe->observacion ?: "Sin observaciones") !!}',
+        lugar: '{!! addslashes($informe->lugar ?: "N/A") !!}',
+        ejecucion: '@if($informe->ejecucion)EJEC-{{ str_pad($informe->ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}@elseSin ejecución@endif',
+        empleados: {!! json_encode($informe->empleados->map(fn($e) => $e->empleado?->nombres_apellidos ?? 'N/A')) !!},
+        articulos: {!! json_encode($informe->articulos->map(fn($a) => ['nombre' => $a->producto?->nombre ?? 'N/A', 'cantidad' => $a->cantidad, 'lote' => $a->lote ?: ''])) !!},
+        descripciones: {!! json_encode($informe->detalles->map(fn($d) => $d->descripcion)) !!}
+    };
+
+    document.getElementById('exportInformeCompleto')?.addEventListener('click', function() {
+        var wb = new ExcelJS.Workbook();
+
+        // Hoja: Resumen
+        var wsResumen = wb.addWorksheet('Resumen');
+        wsResumen.columns = [{ header: 'Campo', key: 'campo', width: 25 }, { header: 'Valor', key: 'valor', width: 50 }];
+        wsResumen.getRow(1).eachCell(c => { c.font = { bold: true, color: { argb: "FFFFFFFF" } }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FF0B1A30" } }; });
+        wsResumen.addRow({ campo: 'ID Informe', valor: informeData.id });
+        wsResumen.addRow({ campo: 'Fecha', valor: informeData.fecha });
+        wsResumen.addRow({ campo: 'Descripción', valor: informeData.descripcion });
+        wsResumen.addRow({ campo: 'Observación', valor: informeData.observacion });
+        wsResumen.addRow({ campo: 'Lugar', valor: informeData.lugar });
+        wsResumen.addRow({ campo: 'Ejecución', valor: informeData.ejecucion });
+
+        // Hoja: Empleados
+        var wsEmp = wb.addWorksheet('Empleados');
+        wsEmp.columns = [{ header: '#', key: 'num', width: 8 }, { header: 'Empleado', key: 'nombre', width: 50 }];
+        wsEmp.getRow(1).eachCell(c => { c.font = { bold: true, color: { argb: "FFFFFFFF" } }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FF0B1A30" } }; });
+        informeData.empleados.forEach((e, i) => wsEmp.addRow({ num: i + 1, nombre: e }));
+
+        // Hoja: Artículos
+        var wsArt = wb.addWorksheet('Artículos');
+        wsArt.columns = [{ header: 'Artículo', key: 'articulo', width: 40 }, { header: 'Cantidad', key: 'cantidad', width: 15 }, { header: 'Lote', key: 'lote', width: 20 }];
+        wsArt.getRow(1).eachCell(c => { c.font = { bold: true, color: { argb: "FFFFFFFF" } }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FF0B1A30" } }; });
+        informeData.articulos.forEach(a => wsArt.addRow({ articulo: a.nombre, cantidad: a.cantidad, lote: a.lote || '-' }));
+
+        // Hoja: Descripciones
+        var wsDesc = wb.addWorksheet('Descripciones');
+        wsDesc.columns = [{ header: '#', key: 'num', width: 8 }, { header: 'Descripción', key: 'desc', width: 80 }];
+        wsDesc.getRow(1).eachCell(c => { c.font = { bold: true, color: { argb: "FFFFFFFF" } }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FF0B1A30" } }; });
+        informeData.descripciones.forEach((d, i) => wsDesc.addRow({ num: i + 1, desc: d }));
+
+        wb.xlsx.writeBuffer().then(buffer => { saveAs(new Blob([buffer], { type: "application/octet-stream" }), informeData.id + '.xlsx'); });
+    });
+
+    document.getElementById('exportInformeCompletoPDF')?.addEventListener('click', function() {
+        const doc = new window.jspdf.jsPDF('p', 'mm', 'a4');
+        var y = 15;
+
+        doc.setFontSize(18); doc.setTextColor(11, 26, 48); doc.setFont(undefined, 'bold');
+        doc.text('Informe Diario: ' + informeData.id, 14, y); y += 8;
+
+        doc.setFontSize(10); doc.setFont(undefined, 'normal'); doc.setTextColor(80);
+        doc.text('Fecha: ' + informeData.fecha + '  |  Lugar: ' + informeData.lugar + '  |  Ejecución: ' + informeData.ejecucion, 14, y); y += 8;
+        doc.text('Descripción: ' + informeData.descripcion, 14, y); y += 5;
+        doc.text('Observación: ' + informeData.observacion, 14, y); y += 10;
+
+        // Empleados
+        doc.setFontSize(13); doc.setTextColor(11, 26, 48); doc.setFont(undefined, 'bold');
+        doc.text('Empleados (' + informeData.empleados.length + ')', 14, y); y += 7;
+        doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor(60);
+        if (informeData.empleados.length > 0) {
+            informeData.empleados.forEach((e, i) => { doc.text((i+1) + '. ' + e, 14, y); y += 5; });
+        } else {
+            doc.text('Sin empleados registrados.', 14, y); y += 5;
+        }
+        y += 5;
+
+        // Artículos
+        if (y > 250) { doc.addPage(); y = 15; }
+        doc.setFontSize(13); doc.setTextColor(11, 26, 48); doc.setFont(undefined, 'bold');
+        doc.text('Artículos (' + informeData.articulos.length + ')', 14, y); y += 7;
+
+        if (informeData.articulos.length > 0) {
+            var artRows = informeData.articulos.map(a => [a.nombre, String(a.cantidad), a.lote || '-']);
+            doc.autoTable({
+                head: [['Artículo', 'Cantidad', 'Lote']],
+                body: artRows,
+                startY: y,
+                headStyles: { fillColor: [11, 26, 48] },
+                alternateRowStyles: { fillColor: [245, 247, 251] },
+                margin: { left: 14 }
+            });
+            y = doc.lastAutoTable.finalY + 8;
+        } else {
+            doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor(60);
+            doc.text('Sin artículos registrados.', 14, y); y += 8;
+        }
+
+        // Descripciones
+        if (y > 250) { doc.addPage(); y = 15; }
+        doc.setFontSize(13); doc.setTextColor(11, 26, 48); doc.setFont(undefined, 'bold');
+        doc.text('Descripciones de Actividades (' + informeData.descripciones.length + ')', 14, y); y += 7;
+        doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor(60);
+        if (informeData.descripciones.length > 0) {
+            informeData.descripciones.forEach((d, i) => {
+                if (y > 275) { doc.addPage(); y = 15; }
+                doc.text((i+1) + '. ' + d, 14, y); y += 5;
+            });
+        } else {
+            doc.text('Sin descripciones registradas.', 14, y);
+        }
+
+        doc.save(informeData.id + '.pdf');
+    });
 </script>
 @endsection
