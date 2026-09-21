@@ -518,7 +518,7 @@
         descripcion: '{!! addslashes($informe->descripcion ?: "Sin descripción") !!}',
         observacion: '{!! addslashes($informe->observacion ?: "Sin observaciones") !!}',
         lugar: '{!! addslashes($informe->lugar ?: "N/A") !!}',
-        ejecucion: '@if($informe->ejecucion)EJEC-{{ str_pad($informe->ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}@elseSin ejecución@endif',
+        ejecucion: '{{ $informe->ejecucion ? "EJEC-" . str_pad($informe->ejecucion->id_ejecucion_obra, 5, "0", STR_PAD_LEFT) : "Sin ejecución" }}',
         empleados: {!! json_encode($informe->empleados->map(fn($e) => $e->empleado?->nombres_apellidos ?? 'N/A')) !!},
         articulos: {!! json_encode($informe->articulos->map(fn($a) => ['nombre' => $a->producto?->nombre ?? 'N/A', 'cantidad' => $a->cantidad, 'lote' => $a->lote ?: ''])) !!},
         descripciones: {!! json_encode($informe->detalles->map(fn($d) => $d->descripcion)) !!}
