@@ -147,8 +147,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ejecuciones/{id}', [App\Http\Controllers\EjecucionObraController::class, 'show'])->name('ejecuciones.show');
     Route::post('/ejecuciones/{id}/detalle', [App\Http\Controllers\EjecucionObraController::class, 'storeDetail'])->name('ejecuciones.storeDetail');
     Route::post('/ejecuciones/{id}/detalle/{id_detail}/delete', [App\Http\Controllers\EjecucionObraController::class, 'deleteDetail'])->name('ejecuciones.deleteDetail');
+    Route::post('/ejecuciones/{id}/detalle-producto/{id_producto}/update-cantidad', [App\Http\Controllers\EjecucionObraController::class, 'updateDetailCantidad'])->name('ejecuciones.updateDetailCantidad');
+    Route::post('/ejecuciones/{id}/detalle-producto/{id_producto}/delete', [App\Http\Controllers\EjecucionObraController::class, 'deleteDetailByProducto'])->name('ejecuciones.deleteDetailByProducto');
     Route::post('/ejecuciones/{id}/diario', [App\Http\Controllers\EjecucionObraController::class, 'storeDiario'])->name('ejecuciones.storeDiario');
     Route::post('/ejecuciones/{id}/diario/{id_diario}/delete', [App\Http\Controllers\EjecucionObraController::class, 'deleteDiario'])->name('ejecuciones.deleteDiario');
+    Route::post('/ejecuciones/{id}/diario/{id_diario}/update', [App\Http\Controllers\EjecucionObraController::class, 'updateDiario'])->name('ejecuciones.updateDiario');
     Route::post('/ejecuciones/{id}/contabilizar', [App\Http\Controllers\EjecucionObraController::class, 'contabilizar'])->name('ejecuciones.contabilizar');
     
     // Rutas de Informe Diario en Ejecuciones
@@ -161,6 +164,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/ejecuciones/{id}/informe-diario/{id_informe}/empleado/{id_empleado}/delete', [App\Http\Controllers\EjecucionObraController::class, 'deleteInformeEmpleado'])->name('ejecuciones.deleteInformeEmpleado');
     Route::post('/ejecuciones/{id}/informe-diario/{id_informe}/articulo', [App\Http\Controllers\EjecucionObraController::class, 'storeInformeArticulo'])->name('ejecuciones.storeInformeArticulo');
     Route::post('/ejecuciones/{id}/informe-diario/{id_informe}/articulo/{id_articulo}/delete', [App\Http\Controllers\EjecucionObraController::class, 'deleteInformeArticulo'])->name('ejecuciones.deleteInformeArticulo');
+    Route::post('/ejecuciones/{id}/informe-diario/{id_informe}/articulo/{id_articulo}/update-cantidad', [App\Http\Controllers\EjecucionObraController::class, 'updateInformeArticulo'])->name('ejecuciones.updateInformeArticulo');
     Route::post('/ejecuciones/{id}/informe-diario/{id_informe}/descripcion', [App\Http\Controllers\EjecucionObraController::class, 'storeInformeDescripcion'])->name('ejecuciones.storeInformeDescripcion');
     Route::post('/ejecuciones/{id}/informe-diario/{id_informe}/descripcion/{id_descripcion}/delete', [App\Http\Controllers\EjecucionObraController::class, 'deleteInformeDescripcion'])->name('ejecuciones.deleteInformeDescripcion');
     Route::post('/ejecuciones/{id}/informe-diario/{id_informe}/imagen', [App\Http\Controllers\EjecucionObraController::class, 'storeInformeImagen'])->name('ejecuciones.storeInformeImagen');
@@ -183,6 +187,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/informes-diarios/{id}/empleado/{id_empleado}/delete', [App\Http\Controllers\InformeDiarioController::class, 'deleteEmpleado'])->name('informes.deleteEmpleado');
     Route::post('/informes-diarios/{id}/articulo', [App\Http\Controllers\InformeDiarioController::class, 'storeArticulo'])->name('informes.storeArticulo');
     Route::post('/informes-diarios/{id}/articulo/{id_articulo}/delete', [App\Http\Controllers\InformeDiarioController::class, 'deleteArticulo'])->name('informes.deleteArticulo');
+    Route::post('/informes-diarios/{id}/articulo/{id_articulo}/update-cantidad', [App\Http\Controllers\InformeDiarioController::class, 'updateArticulo'])->name('informes.updateArticulo');
     Route::post('/informes-diarios/{id}/descripcion', [App\Http\Controllers\InformeDiarioController::class, 'storeDescripcion'])->name('informes.storeDescripcion');
     Route::post('/informes-diarios/{id}/descripcion/{id_descripcion}/delete', [App\Http\Controllers\InformeDiarioController::class, 'deleteDescripcion'])->name('informes.deleteDescripcion');
     Route::post('/informes-diarios/{id}/imagen', [App\Http\Controllers\InformeDiarioController::class, 'storeImagen'])->name('informes.storeImagen');

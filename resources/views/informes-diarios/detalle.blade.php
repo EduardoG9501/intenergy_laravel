@@ -2,6 +2,28 @@
 
 @section('title', 'Detalle Informe Diario - Intenergy')
 
+@section('styles')
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<style>
+    .select2-container .select2-selection--single {
+        height: 38px !important;
+        border: 1px solid #dee2e6 !important;
+        border-radius: 6px !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 36px !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 36px !important;
+    }
+    .select2-dropdown {
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+    }
+</style>
+@endsection
+
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
@@ -136,16 +158,12 @@
                         @csrf
                         <div class="col-md-5">
                             <label class="form-label fw-semibold small">Artículo *</label>
-                            <input type="hidden" name="id_producto" id="selectArticulo" required>
-                            <div class="input-group input-group-sm">
-                                <input type="text" class="form-control bg-white" id="nombreArticulo" placeholder="Selecciona artículo..." readonly>
-                                <button type="button" class="btn btn-outline-primary" onclick="abrirModalArticulos()">
-                                    <i class="fa-solid fa-search"></i>
-                                </button>
-                                <button type="button" class="btn btn-outline-danger" id="clearArticulo" onclick="limpiarArticulo()" style="display:none;">
-                                    <i class="fa-solid fa-xmark"></i>
-                                </button>
-                            </div>
+                            <select class="form-select form-select-sm select2-articulos-inf" name="id_producto" id="selectArticulo" required>
+                                <option value="" disabled selected>Selecciona artículo...</option>
+                                @foreach($articulos as $art)
+                                    <option value="{{ $art->id_producto }}">{{ $art->nombre }} - {{ $art->referencia ?: 'Sin Ref' }}</option>
+                                @endforeach
+                            </select>
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-semibold small">Cantidad *</label>
@@ -160,13 +178,13 @@
                         </div>
                     </form>
                     <div class="table-responsive">
-                        <table class="table table-sm table-hover align-middle mb-0">
+                        <table class="table table-sm table-hover align-middle mb-0" id="tablaArticulosInf">
                             <thead class="table-light">
                                 <tr>
                                     <th class="ps-3">Artículo</th>
                                     <th>Cantidad</th>
                                     <th>Lote</th>
-                                    <th class="text-center pe-3" style="width:80px;">Acción</th>
+                                    <th class="text-center pe-3" style="width:120px;">Acción</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -176,6 +194,9 @@
                                         <td>{{ number_format($art->cantidad, 2) }}</td>
                                         <td>{{ $art->lote ?: '-' }}</td>
                                         <td class="text-center pe-3">
+                                            <button class="btn btn-sm btn-outline-warning me-1" onclick="modificarCantidadArt({{ $art->id_informe_diario_articulo }}, {{ $art->cantidad }})" title="Editar cantidad">
+                                                <i class="fa-solid fa-pen-to-square"></i>
+                                            </button>
                                             <button class="btn btn-sm btn-outline-danger" onclick="eliminarArticulo({{ $art->id_informe_diario_articulo }})">
                                                 <i class="fa-solid fa-xmark"></i>
                                             </button>
@@ -187,6 +208,16 @@
                             </tbody>
                         </table>
                     </div>
+                    @if($informe->articulos->count())
+                        <div class="d-flex justify-content-end gap-2 mt-3">
+                            <button type="button" class="btn btn-sm btn-success fw-semibold" onclick="exportArticulosExcel()">
+                                <i class="fa-solid fa-file-excel me-1"></i> Excel
+                            </button>
+                            <button type="button" class="btn btn-sm btn-danger fw-semibold" onclick="exportArticulosPDF()">
+                                <i class="fa-solid fa-file-pdf me-1"></i> PDF
+                            </button>
+                        </div>
+                    @endif
                 </div>
             </div>
 
@@ -267,34 +298,18 @@
     </div>
 </div>
 
-<!-- MODAL SELECCIONAR ARTICULO -->
-<div class="modal fade" id="modalSeleccionarArticulo" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
-    <div class="modal-dialog modal-dialog-centered" style="z-index: 1060;">
-        <div class="modal-content border-0 shadow-lg" style="z-index: 1060;">
-            <div class="modal-header bg-primary text-white py-3">
-                <h5 class="fw-bold mb-0"><i class="fa-solid fa-box me-2"></i> Seleccionar Artículo</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-3">
-                <div class="input-group mb-3">
-                    <span class="input-group-text bg-white"><i class="fa-solid fa-search text-muted"></i></span>
-                    <input type="text" class="form-control" id="buscadorArticuloModal" placeholder="Escribe para buscar artículo..." oninput="filtrarArticulosModal()">
-                </div>
-                <div class="list-group" id="listaArticulosModal" style="max-height: 350px; overflow-y: auto;"></div>
-                <div id="sinResultadosArticulo" class="text-center text-muted py-4" style="display:none;">
-                    <i class="fa-solid fa-search fa-2x mb-2 text-warning"></i>
-                    <p class="mb-0">No se encontraron artículos</p>
-                </div>
-            </div>
-            <div class="modal-footer border-0 pt-0 pb-3">
-                <button type="button" class="btn btn-sm btn-outline-secondary px-3" data-bs-dismiss="modal">Cancelar</button>
-            </div>
-        </div>
-    </div>
-</div>
 @endsection
 
 @section('scripts')
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<!-- ExcelJS y FileSaver -->
+<script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<!-- jsPDF y AutoTable -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.7.0/jspdf.plugin.autotable.min.js"></script>
+
 <script>
     const INF_ID = {{ $informe->id_informe_diario_ejecucion }};
     const CSRF_TOKEN = '{{ csrf_token() }}';
@@ -314,6 +329,14 @@
         }).then(r => r.json());
     }
 
+    function postJSON(url, data) {
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify(data)
+        }).then(r => r.json());
+    }
+
     // === TAB PERSISTENCE ===
     function saveTabState(subTab) {
         if (subTab) sessionStorage.setItem('inf_subTab', subTab);
@@ -323,14 +346,17 @@
         const subTab = sessionStorage.getItem('inf_subTab');
         if (subTab) {
             const tabBtn = document.querySelector(`[data-bs-target="#${subTab}"]`);
-            if (tabBtn) {
-                bootstrap.Tab.getOrCreateInstance(tabBtn).show();
-            }
+            if (tabBtn) bootstrap.Tab.getOrCreateInstance(tabBtn).show();
         }
         sessionStorage.removeItem('inf_subTab');
     }
 
     document.addEventListener('DOMContentLoaded', restoreTabState);
+
+    // === SELECT2 INIT ===
+    $(document).ready(function() {
+        $('.select2-articulos-inf').select2({ width: '100%', placeholder: 'Buscar artículo...', allowClear: true, language: { noResults: () => "No se encontraron artículos", searching: () => "Buscando..." } });
+    });
 
     function reload() { location.reload(); }
 
@@ -371,6 +397,22 @@
         .then(r => r.success ? toast('Artículo agregado', 'pane-articulos') : Swal.fire('Error', r.mensaje, 'error'));
     }
 
+    function modificarCantidadArt(idArt, cantidadActual) {
+        Swal.fire({
+            title: 'Modificar Cantidad',
+            text: 'Ingrese la nueva cantidad:',
+            input: 'number', inputValue: cantidadActual,
+            inputAttributes: { step: '0.01', min: '0.01' },
+            showCancelButton: true, confirmButtonText: 'Guardar', cancelButtonText: 'Cancelar', confirmButtonColor: '#ffc107'
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                saveTabState('pane-articulos');
+                postJSON(`/informes-diarios/${INF_ID}/articulo/${idArt}/update-cantidad`, { cantidad: result.value })
+                .then(r => r.success ? reload() : Swal.fire('Error', r.mensaje, 'error'));
+            }
+        });
+    }
+
     function eliminarArticulo(idArt) {
         confirmar('¿Remover artículo?', () => {
             saveTabState('pane-articulos');
@@ -379,57 +421,45 @@
         });
     }
 
-    // === BUSCADOR DE ARTICULOS EN MODAL ===
-    var arrArticulos = {!! json_encode($articulos->map(fn($a) => ['id' => $a->id_producto, 'nombre' => $a->nombre])) !!};
+    // === EXPORT ARTICULOS ===
+    function exportArticulosExcel() {
+        var table = document.getElementById('tablaArticulosInf');
+        var headers = ['Artículo', 'Cantidad', 'Lote'];
+        var bodyRows = [];
+        Array.from(table.querySelectorAll('tbody tr')).forEach(row => {
+            if (row.querySelector('td[colspan]')) return;
+            var cols = Array.from(row.cells).slice(0, 3).map(c => c.innerText.trim());
+            if (cols.length > 0) bodyRows.push(cols);
+        });
+        if (bodyRows.length === 0) { Swal.fire('Atención', 'No hay datos para exportar.', 'warning'); return; }
 
-    function abrirModalArticulos() {
-        document.getElementById('buscadorArticuloModal').value = '';
-        renderizarListaArticulos('');
-        var modal = new bootstrap.Modal(document.getElementById('modalSeleccionarArticulo'));
-        modal.show();
-        setTimeout(function() { document.getElementById('buscadorArticuloModal').focus(); }, 400);
+        var workbook = new ExcelJS.Workbook();
+        var ws = workbook.addWorksheet('Artículos');
+        ws.columns = [{ header: 'Artículo', key: 'articulo', width: 40 }, { header: 'Cantidad', key: 'cantidad', width: 15 }, { header: 'Lote', key: 'lote', width: 20 }];
+        let hRow = ws.getRow(1);
+        hRow.eachCell(cell => { cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FF0B1A30" } }; cell.alignment = { horizontal: "center", vertical: "middle" }; });
+        bodyRows.forEach(row => ws.addRow({ articulo: row[0], cantidad: row[1], lote: row[2] }));
+        workbook.xlsx.writeBuffer().then(buffer => { saveAs(new Blob([buffer], { type: "application/octet-stream" }), `Articulos_INF-{{ str_pad($informe->id_informe_diario_ejecucion, 5, '0', STR_PAD_LEFT) }}.xlsx`); });
     }
 
-    function renderizarListaArticulos(busqueda) {
-        var lista = document.getElementById('listaArticulosModal');
-        var sinResultados = document.getElementById('sinResultadosArticulo');
-        var busq = busqueda.toLowerCase().trim();
-        var html = '';
-        var visibles = 0;
+    function exportArticulosPDF() {
+        var table = document.getElementById('tablaArticulosInf');
+        var headers = ['Artículo', 'Cantidad', 'Lote'];
+        var bodyRows = [];
+        Array.from(table.querySelectorAll('tbody tr')).forEach(row => {
+            if (row.querySelector('td[colspan]')) return;
+            var cols = Array.from(row.cells).slice(0, 3).map(c => c.innerText.trim());
+            if (cols.length > 0) bodyRows.push(cols);
+        });
+        if (bodyRows.length === 0) { Swal.fire('Atención', 'No hay datos para exportar.', 'warning'); return; }
 
-        for (var i = 0; i < arrArticulos.length; i++) {
-            var art = arrArticulos[i];
-            var nombreLower = art.nombre.toLowerCase();
-            if (busq === '' || nombreLower.indexOf(busq) !== -1) {
-                html += '<button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2" onclick="seleccionarArticuloModal(' + art.id + ', this.getAttribute(\x27data-nombre\x27))" data-nombre="' + art.nombre.replace(/"/g, '&quot;') + '">' +
-                    '<span>' + art.nombre + '</span>' +
-                    '<i class="fa-solid fa-chevron-right text-muted small"></i>' +
-                    '</button>';
-                visibles++;
-            }
-        }
-
-        lista.innerHTML = html;
-        sinResultados.style.display = visibles === 0 ? '' : 'none';
-    }
-
-    function filtrarArticulosModal() {
-        var busqueda = document.getElementById('buscadorArticuloModal').value;
-        renderizarListaArticulos(busqueda);
-    }
-
-    function seleccionarArticuloModal(id, nombre) {
-        document.getElementById('selectArticulo').value = id;
-        document.getElementById('nombreArticulo').value = nombre;
-        document.getElementById('clearArticulo').style.display = '';
-        var modal = bootstrap.Modal.getInstance(document.getElementById('modalSeleccionarArticulo'));
-        if (modal) modal.hide();
-    }
-
-    function limpiarArticulo() {
-        document.getElementById('selectArticulo').value = '';
-        document.getElementById('nombreArticulo').value = '';
-        document.getElementById('clearArticulo').style.display = 'none';
+        const doc = new window.jspdf.jsPDF();
+        doc.setFontSize(14); doc.setTextColor(11, 26, 48);
+        doc.text("Artículos - Informe INF-{{ str_pad($informe->id_informe_diario_ejecucion, 5, '0', STR_PAD_LEFT) }}", 14, 20);
+        doc.setFontSize(10); doc.setTextColor(100);
+        doc.text("Fecha: {{ \Carbon\Carbon::parse($informe->fecha)->format('d/m/Y') }} | Lugar: {{ $informe->lugar ?: 'N/A' }}", 14, 28);
+        doc.autoTable({ head: [headers], body: bodyRows, startY: 35, headStyles: { fillColor: [11, 26, 48] }, alternateRowStyles: { fillColor: [245, 247, 251] } });
+        doc.save(`Articulos_INF-{{ str_pad($informe->id_informe_diario_ejecucion, 5, '0', STR_PAD_LEFT) }}.pdf`);
     }
 
     // === SUB-TAB: IMAGENES ===

@@ -100,9 +100,24 @@ class EjecucionObraController extends Controller
     public function show($id)
     {
         $ejecucion = EjecucionObra::with(['orden.proyecto', 'orden.obra', 'estadoEjecucion'])->findOrFail($id);
-        $detalles = EjecucionObraDetalle::with(['producto', 'bodegaLugar'])
-                                         ->where('id_ejecucion_obra', $id)
-                                         ->get();
+
+        // Materiales consolidados por producto
+        $detallesRaw = EjecucionObraDetalle::with(['producto', 'bodegaLugar'])
+                                           ->where('id_ejecucion_obra', $id)
+                                           ->get();
+        $detalles = $detallesRaw->groupBy('id_producto')->map(function($items, $id_producto) {
+            $first = $items->first();
+            return (object) [
+                'id_producto' => $id_producto,
+                'producto' => $first->producto,
+                'bodegaLugar' => $first->bodegaLugar,
+                'cantidad' => $items->sum('cantidad'),
+                'Contabilizado' => $items->every('Contabilizado', 1),
+                'ids' => $items->pluck('id_ejecucion_obra_detalle_materiales_utilizar')->toArray(),
+                'all_contabilizado' => $items->every('Contabilizado', 1),
+                'any_contabilizado' => $items->contains('Contabilizado', 1),
+            ];
+        })->values();
 
         $horasDiarias = HorasTrabajoDiarioDetalle::with('empleado')
                                                 ->where('id_ejecucion_obra', $id)
@@ -182,6 +197,67 @@ class EjecucionObraController extends Controller
         }
     }
 
+    public function updateDetailCantidad(Request $request, $id_ejec, $id_producto)
+    {
+        $request->validate([
+            'cantidad' => 'required|numeric|min:0.01'
+        ]);
+
+        try {
+            $detalles = EjecucionObraDetalle::where('id_ejecucion_obra', $id_ejec)
+                                            ->where('id_producto', $id_producto)
+                                            ->where('Contabilizado', 0)
+                                            ->get();
+
+            if ($detalles->isEmpty()) {
+                return response()->json(['success' => false, 'mensaje' => 'No se encontraron detalles pendientes para este producto.']);
+            }
+
+            // Validar stock para la nueva cantidad total
+            $nuevaCantidad = $request->cantidad;
+            $bodega = $detalles->first()->id_bodega_lugar;
+            $stockDisponible = StockProductoBodega::where('id_producto', $id_producto)
+                                                   ->where('id_bodega_principal', $bodega)
+                                                   ->value('cantidad') ?? 0;
+
+            if ($nuevaCantidad > $stockDisponible) {
+                return response()->json([
+                    'success' => false,
+                    'mensaje' => 'Stock insuficiente. Disponible: ' . number_format($stockDisponible, 2)
+                ]);
+            }
+
+            // Eliminar registros pendientes y crear uno nuevo con la cantidad consolidada
+            $detalles->each->delete();
+
+            EjecucionObraDetalle::create([
+                'id_ejecucion_obra' => $id_ejec,
+                'id_producto' => $id_producto,
+                'cantidad' => $nuevaCantidad,
+                'id_bodega_lugar' => $bodega,
+                'Contabilizado' => 0,
+                'Estado' => 1
+            ]);
+
+            return response()->json(['success' => true, 'mensaje' => 'Cantidad actualizada correctamente.']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'mensaje' => 'Error al actualizar cantidad: ' . $e->getMessage()]);
+        }
+    }
+
+    public function deleteDetailByProducto($id_ejec, $id_producto)
+    {
+        try {
+            EjecucionObraDetalle::where('id_ejecucion_obra', $id_ejec)
+                                ->where('id_producto', $id_producto)
+                                ->where('Contabilizado', 0)
+                                ->delete();
+            return response()->json(['success' => true, 'mensaje' => 'Material removido correctamente.']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'mensaje' => 'Error al remover material: ' . $e->getMessage()]);
+        }
+    }
+
     public function storeDiario(Request $request, $id)
     {
         $request->validate([
@@ -221,6 +297,35 @@ class EjecucionObraController extends Controller
             return response()->json(['success' => true, 'mensaje' => 'Registro de horas eliminado correctamente.']);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'mensaje' => 'Error al eliminar registro: ' . $e->getMessage()]);
+        }
+    }
+
+    public function updateDiario(Request $request, $id_ejec, $id_diario)
+    {
+        $request->validate([
+            'hora_entrada' => 'required',
+            'hora_salida' => 'required',
+        ]);
+
+        try {
+            $ht = HorasTrabajoDiarioDetalle::where('id_horas_trabajo_diario_detalle', $id_diario)
+                                           ->where('id_ejecucion_obra', $id_ejec)
+                                           ->firstOrFail();
+
+            $ejec = EjecucionObra::findOrFail($id_ejec);
+            $res = $this->calcularHorasTrabajo($request->hora_entrada, $request->hora_salida, $ejec->feriado, $ejec->fecha_solicitud);
+
+            $ht->update([
+                'hora_entrada' => $request->hora_entrada,
+                'hora_salida' => $request->hora_salida,
+                'cantidad_horas_normal' => $res['horas_normales'],
+                'cantidad_horas_extra' => $res['horas_extras'],
+                'cantidad_horas_extraordinaria' => $res['horas_extraordinarias'],
+            ]);
+
+            return response()->json(['success' => true, 'mensaje' => 'Horas de trabajo actualizadas correctamente.']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'mensaje' => 'Error al actualizar horas: ' . $e->getMessage()]);
         }
     }
 
@@ -508,6 +613,25 @@ class EjecucionObraController extends Controller
             return response()->json(['success' => true, 'mensaje' => 'Artículo removido.']);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'mensaje' => 'Error: ' . $e->getMessage()]);
+        }
+    }
+
+    public function updateInformeArticulo(Request $request, $id, $id_informe, $id_articulo)
+    {
+        $request->validate([
+            'cantidad' => 'required|numeric|min:0.01'
+        ]);
+
+        try {
+            $articulo = \App\Models\InformeDiarioArticulo::where('id_informe_diario_articulo', $id_articulo)
+                                                         ->where('id_informe_diario_ejecucion', $id_informe)
+                                                         ->firstOrFail();
+            $articulo->cantidad = $request->cantidad;
+            $articulo->save();
+
+            return response()->json(['success' => true, 'mensaje' => 'Cantidad actualizada correctamente.']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'mensaje' => 'Error al actualizar cantidad: ' . $e->getMessage()]);
         }
     }
 

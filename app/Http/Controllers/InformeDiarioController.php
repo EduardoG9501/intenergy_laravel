@@ -206,6 +206,25 @@ class InformeDiarioController extends Controller
         }
     }
 
+    public function updateArticulo(Request $request, $id, $id_articulo)
+    {
+        $request->validate([
+            'cantidad' => 'required|numeric|min:0.01'
+        ]);
+
+        try {
+            $articulo = InformeDiarioArticulo::where('id_informe_diario_articulo', $id_articulo)
+                                             ->where('id_informe_diario_ejecucion', $id)
+                                             ->firstOrFail();
+            $articulo->cantidad = $request->cantidad;
+            $articulo->save();
+
+            return response()->json(['success' => true, 'mensaje' => 'Cantidad actualizada correctamente.']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'mensaje' => 'Error al actualizar cantidad: ' . $e->getMessage()]);
+        }
+    }
+
     public function storeDescripcion(Request $request, $id)
     {
         $request->validate([

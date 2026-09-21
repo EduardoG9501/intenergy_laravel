@@ -5,7 +5,7 @@
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h2 class="fw-bold mb-0">Ejecución Diaria de Obra</h2>
+        <h2 class="fw-bold mb-0">Ejecución de Obra</h2>
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb">
                 <li class="breadcrumb-item"><a href="{{ route('inicio') }}">Inicio</a></li>
@@ -14,7 +14,7 @@
         </nav>
     </div>
     <button class="btn btn-primary-custom px-4 py-2" data-bs-toggle="modal" data-bs-target="#modalAdd">
-        <i class="fa-solid fa-plus me-2"></i> Nueva Ejecución Diaria
+        <i class="fa-solid fa-plus me-2"></i> Nueva Ejecución
     </button>
 </div>
 
@@ -86,7 +86,7 @@
                     <tr>
                         <td colspan="8" class="text-center py-5 text-muted">
                             <i class="fa-solid fa-person-digging fa-2x mb-3 text-warning"></i>
-                            <p class="mb-0">No se encontraron registros de ejecución diaria.</p>
+                            <p class="mb-0">No se encontraron registros de ejecución de obra.</p>
                         </td>
                     </tr>
                 @endforelse
@@ -107,7 +107,7 @@
     <div class="modal-dialog">
         <div class="modal-content card-custom p-3 border-0">
             <div class="modal-header border-0 pb-0">
-                <h4 class="fw-bold mb-0" id="modalAddLabel">Crear Ejecución Diaria</h4>
+                <h4 class="fw-bold mb-0" id="modalAddLabel">Crear Ejecución</h4>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="formAdd">

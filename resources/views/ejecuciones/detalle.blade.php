@@ -2,6 +2,28 @@
 
 @section('title', 'Detalle de Ejecución de Obra - Intenergy')
 
+@section('styles')
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<style>
+    .select2-container .select2-selection--single {
+        height: 38px !important;
+        border: 1px solid #dee2e6 !important;
+        border-radius: 6px !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 36px !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 36px !important;
+    }
+    .select2-dropdown {
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+    }
+</style>
+@endsection
+
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
@@ -97,18 +119,14 @@
                         <h4 class="fw-bold mb-3">Registrar Material Utilizado</h4>
                         <form id="formAddMaterial" class="row g-3">
                             @csrf
-                            <input type="hidden" name="id_producto" id="mat_id_producto" required>
                             <div class="col-md-8">
                                 <label class="form-label fw-semibold">Material / Artículo *</label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control bg-white" id="mat_nombre_articulo" readonly placeholder="Haz clic en buscar para seleccionar artículo..." required>
-                                    <button type="button" class="btn btn-outline-primary" onclick="abrirModalArticuloMat()" title="Buscar artículo">
-                                        <i class="fa-solid fa-magnifying-glass"></i>
-                                    </button>
-                                    <button type="button" class="btn btn-outline-danger" id="mat_clear_articulo" style="display:none;" onclick="limpiarArticuloMat()" title="Limpiar selección">
-                                        <i class="fa-solid fa-xmark"></i>
-                                    </button>
-                                </div>
+                                <select class="form-select select2-articulos-ejec" name="id_producto" id="mat_id_producto" required>
+                                    <option value="" disabled selected>Selecciona artículo...</option>
+                                    @foreach($articulos as $art)
+                                        <option value="{{ $art->id_producto }}">{{ $art->nombre }} - {{ $art->referencia ?: 'Sin Ref' }}</option>
+                                    @endforeach
+                                </select>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label fw-semibold">Cantidad *</label>
@@ -125,14 +143,25 @@
 
                 <!-- Tabla Materiales -->
                 <div class="card card-custom p-0 overflow-hidden">
+                    <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center">
+                        <h5 class="fw-bold mb-0">Materiales Utilizados</h5>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-success fw-semibold" id="exportMaterialesExcel">
+                                <i class="fa-solid fa-file-excel me-1"></i> Excel
+                            </button>
+                            <button type="button" class="btn btn-sm btn-danger fw-semibold" id="exportMaterialesPDF">
+                                <i class="fa-solid fa-file-pdf me-1"></i> PDF
+                            </button>
+                        </div>
+                    </div>
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
+                        <table class="table table-hover align-middle mb-0" id="tablaMateriales">
                             <thead class="table-light">
                                 <tr>
                                     <th class="ps-4">Artículo</th>
                                     <th>Bodega Origen</th>
                                     <th>Cantidad</th>
-                                    <th>Contabilizado</th>
+                                    <th>Estado</th>
                                     @if($ejecucion->id_estado_ejecucion_obra == 1)
                                         <th class="text-center pe-4">Acciones</th>
                                     @endif
@@ -145,16 +174,21 @@
                                         <td>{{ $det->bodegaLugar?->nombreBodega }}</td>
                                         <td class="fw-bold text-primary">{{ number_format($det->cantidad, 2) }}</td>
                                         <td>
-                                            @if($det->Contabilizado)
-                                                <span class="badge bg-success">Sí (Descargado)</span>
+                                            @if($det->all_contabilizado)
+                                                <span class="badge bg-success">Descargado</span>
+                                            @elseif($det->any_contabilizado)
+                                                <span class="badge bg-info">Parcial</span>
                                             @else
                                                 <span class="badge bg-warning text-dark">Pendiente</span>
                                             @endif
                                         </td>
                                         @if($ejecucion->id_estado_ejecucion_obra == 1)
                                             <td class="text-center pe-4">
-                                                @if(!$det->Contabilizado)
-                                                    <button class="btn btn-sm btn-outline-danger" onclick="eliminarMaterial({{ $det->id_ejecucion_obra_detalle_materiales_utilizar }})">
+                                                @if(!$det->any_contabilizado)
+                                                    <button class="btn btn-sm btn-outline-warning me-1" onclick="modificarCantidadMaterial({{ $det->id_producto }}, {{ $det->cantidad }})" title="Editar cantidad">
+                                                        <i class="fa-solid fa-pen-to-square"></i>
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-danger" onclick="eliminarMaterial({{ $det->id_producto }})" title="Eliminar material">
                                                         <i class="fa-solid fa-trash-can"></i>
                                                     </button>
                                                 @else
@@ -213,8 +247,19 @@
 
                 <!-- Tabla Horas -->
                 <div class="card card-custom p-0 overflow-hidden">
+                    <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center">
+                        <h5 class="fw-bold mb-0">Mano de Obra Diaria</h5>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-success fw-semibold" id="exportHorasExcel">
+                                <i class="fa-solid fa-file-excel me-1"></i> Excel
+                            </button>
+                            <button type="button" class="btn btn-sm btn-danger fw-semibold" id="exportHorasPDF">
+                                <i class="fa-solid fa-file-pdf me-1"></i> PDF
+                            </button>
+                        </div>
+                    </div>
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
+                        <table class="table table-hover align-middle mb-0" id="tablaHoras">
                             <thead class="table-light">
                                 <tr>
                                     <th class="ps-4">Empleado</th>
@@ -239,6 +284,9 @@
                                         <td class="fw-bold text-danger">{{ number_format($hd->cantidad_extraordinarias ?? $hd->cantidad_horas_extraordinaria, 2) }}</td>
                                         @if($ejecucion->id_estado_ejecucion_obra == 1)
                                             <td class="text-center pe-4">
+                                                <button class="btn btn-sm btn-outline-warning me-1" onclick="modificarHoras({{ $hd->id_horas_trabajo_diario_detalle }}, '{{ date('H:i', strtotime($hd->hora_entrada)) }}', '{{ date('H:i', strtotime($hd->hora_salida)) }}')" title="Editar horas">
+                                                    <i class="fa-solid fa-pen-to-square"></i>
+                                                </button>
                                                 <button class="btn btn-sm btn-outline-danger" onclick="eliminarHoras({{ $hd->id_horas_trabajo_diario_detalle }})">
                                                     <i class="fa-solid fa-trash-can"></i>
                                                 </button>
@@ -420,16 +468,12 @@
                                             @csrf
                                             <div class="col-md-5">
                                                 <label class="form-label fw-semibold small">Artículo *</label>
-                                                <input type="hidden" name="id_producto" id="selectArticulo-{{ $inf->id_informe_diario_ejecucion }}" required>
-                                                <div class="input-group input-group-sm">
-                                                    <input type="text" class="form-control bg-white" id="nombreArticulo-{{ $inf->id_informe_diario_ejecucion }}" placeholder="Selecciona artículo..." readonly>
-                                                    <button type="button" class="btn btn-outline-primary" onclick="abrirModalArticulos({{ $inf->id_informe_diario_ejecucion }})">
-                                                        <i class="fa-solid fa-search"></i>
-                                                    </button>
-                                                    <button type="button" class="btn btn-outline-danger" id="clearArticulo-{{ $inf->id_informe_diario_ejecucion }}" onclick="limpiarArticulo({{ $inf->id_informe_diario_ejecucion }})" style="display:none;">
-                                                        <i class="fa-solid fa-xmark"></i>
-                                                    </button>
-                                                </div>
+                                                <select class="form-select form-select-sm select2-articulos-informe" name="id_producto" required data-informe-id="{{ $inf->id_informe_diario_ejecucion }}">
+                                                    <option value="" disabled selected>Selecciona artículo...</option>
+                                                    @foreach($articulos as $art)
+                                                        <option value="{{ $art->id_producto }}">{{ $art->nombre }}</option>
+                                                    @endforeach
+                                                </select>
                                             </div>
                                             <div class="col-md-2">
                                                 <label class="form-label fw-semibold small">Cantidad *</label>
@@ -452,7 +496,7 @@
                                                     <th>Cantidad</th>
                                                     <th>Lote</th>
                                                     @if($ejecucion->id_estado_ejecucion_obra == 1)
-                                                        <th class="text-center pe-3" style="width:80px;">Acción</th>
+                                                        <th class="text-center pe-3" style="width:120px;">Acción</th>
                                                     @endif
                                                 </tr>
                                             </thead>
@@ -464,6 +508,9 @@
                                                         <td>{{ $art->lote ?: '-' }}</td>
                                                         @if($ejecucion->id_estado_ejecucion_obra == 1)
                                                             <td class="text-center pe-3">
+                                                                <button class="btn btn-sm btn-outline-warning me-1" onclick="modificarCantidadInforme({{ $inf->id_informe_diario_ejecucion }}, {{ $art->id_informe_diario_articulo }}, {{ $art->cantidad }})" title="Editar cantidad">
+                                                                    <i class="fa-solid fa-pen-to-square"></i>
+                                                                </button>
                                                                 <button class="btn btn-sm btn-outline-danger" onclick="eliminarArticulo({{ $inf->id_informe_diario_ejecucion }}, {{ $art->id_informe_diario_articulo }})">
                                                                     <i class="fa-solid fa-xmark"></i>
                                                                 </button>
@@ -608,35 +655,18 @@
     </div>
 </div>
 
-<!-- MODAL SELECCIONAR ARTICULO -->
-<div class="modal fade" id="modalSeleccionarArticulo" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
-    <div class="modal-dialog modal-dialog-centered" style="z-index: 1060;">
-        <div class="modal-content border-0 shadow-lg" style="z-index: 1060;">
-            <div class="modal-header bg-primary text-white py-3">
-                <h5 class="fw-bold mb-0"><i class="fa-solid fa-box me-2"></i> Seleccionar Artículo</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-3">
-                <div class="input-group mb-3">
-                    <span class="input-group-text bg-white"><i class="fa-solid fa-search text-muted"></i></span>
-                    <input type="text" class="form-control" id="buscadorArticuloModal" placeholder="Escribe para buscar artículo..." oninput="filtrarArticulosModal()">
-                </div>
-                <div class="list-group" id="listaArticulosModal" style="max-height: 350px; overflow-y: auto;"></div>
-                <div id="sinResultadosArticulo" class="text-center text-muted py-4" style="display:none;">
-                    <i class="fa-solid fa-search fa-2x mb-2 text-warning"></i>
-                    <p class="mb-0">No se encontraron artículos</p>
-                </div>
-            </div>
-            <div class="modal-footer border-0 pt-0 pb-3">
-                <button type="button" class="btn btn-sm btn-outline-secondary px-3" data-bs-dismiss="modal">Cancelar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 @endsection
 
 @section('scripts')
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<!-- ExcelJS y FileSaver -->
+<script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<!-- jsPDF y AutoTable -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.7.0/jspdf.plugin.autotable.min.js"></script>
+
 <script>
     @if($ejecucion->id_estado_ejecucion_obra == 1)
     const EJEC_ID = {{ $ejecucion->id_ejecucion_obra }};
@@ -657,6 +687,14 @@
         }).then(r => r.json());
     }
 
+    function postJSON(url, data) {
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify(data)
+        }).then(r => r.json());
+    }
+
     // === TAB PERSISTENCE ===
     function saveTabState(mainTab, informeId, subTab) {
         sessionStorage.setItem('ejec_mainTab', mainTab);
@@ -668,30 +706,20 @@
         const mainTab = sessionStorage.getItem('ejec_mainTab');
         const informeId = sessionStorage.getItem('ejec_informeId');
         const subTab = sessionStorage.getItem('ejec_subTab');
-
         if (mainTab) {
             const tabBtn = document.querySelector(`[data-bs-target="#${mainTab}"]`);
-            if (tabBtn) {
-                bootstrap.Tab.getOrCreateInstance(tabBtn).show();
-            }
+            if (tabBtn) bootstrap.Tab.getOrCreateInstance(tabBtn).show();
         }
-
         if (informeId) {
             const collapse = document.getElementById(`collapse-informe-${informeId}`);
-            if (collapse && !collapse.classList.contains('show')) {
-                new bootstrap.Collapse(collapse, { toggle: true });
-            }
+            if (collapse && !collapse.classList.contains('show')) new bootstrap.Collapse(collapse, { toggle: true });
         }
-
         if (subTab && informeId) {
             setTimeout(() => {
                 const subTabBtn = document.querySelector(`[data-bs-target="#${subTab}-${informeId}"]`);
-                if (subTabBtn) {
-                    bootstrap.Tab.getOrCreateInstance(subTabBtn).show();
-                }
+                if (subTabBtn) bootstrap.Tab.getOrCreateInstance(subTabBtn).show();
             }, 350);
         }
-
         sessionStorage.removeItem('ejec_mainTab');
         sessionStorage.removeItem('ejec_informeId');
         sessionStorage.removeItem('ejec_subTab');
@@ -712,6 +740,12 @@
         .then(r => { if (r.isConfirmed) fn(); });
     }
 
+    // === SELECT2 INIT ===
+    $(document).ready(function() {
+        $('.select2-articulos-ejec').select2({ width: '100%', placeholder: 'Buscar artículo...', allowClear: true, language: { noResults: () => "No se encontraron artículos", searching: () => "Buscando..." } });
+        $('.select2-articulos-informe').select2({ width: '100%', placeholder: 'Buscar artículo...', allowClear: true, language: { noResults: () => "No se encontraron artículos", searching: () => "Buscando..." } });
+    });
+
     // === MAIN TAB: MATERIALES ===
     document.getElementById('formAddMaterial').addEventListener('submit', function(e) {
         e.preventDefault();
@@ -720,10 +754,26 @@
         .then(r => r.success ? reload() : Swal.fire('Error', r.mensaje, 'error'));
     });
 
-    function eliminarMaterial(id) {
-        confirmar('¿Remover material?', () => {
+    function modificarCantidadMaterial(idProducto, cantidadActual) {
+        Swal.fire({
+            title: 'Modificar Cantidad',
+            text: 'Ingrese la nueva cantidad total para este material:',
+            input: 'number', inputValue: cantidadActual,
+            inputAttributes: { step: '0.01', min: '0.01' },
+            showCancelButton: true, confirmButtonText: 'Guardar', cancelButtonText: 'Cancelar', confirmButtonColor: '#ffc107'
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                saveTabState('pills-materiales');
+                postJSON(`/ejecuciones/${EJEC_ID}/detalle-producto/${idProducto}/update-cantidad`, { cantidad: result.value })
+                .then(r => r.success ? reload() : Swal.fire('Error', r.mensaje, 'error'));
+            }
+        });
+    }
+
+    function eliminarMaterial(idProducto) {
+        confirmar('¿Remover material? Se eliminarán todos los registros pendientes de este producto.', () => {
             saveTabState('pills-materiales');
-            postAction(`/ejecuciones/${EJEC_ID}/detalle/${id}/delete`)
+            postAction(`/ejecuciones/${EJEC_ID}/detalle-producto/${idProducto}/delete`)
             .then(r => r.success ? reload() : Swal.fire('Error', r.mensaje, 'error'));
         });
     }
@@ -735,6 +785,30 @@
         postForm(`{{ route("ejecuciones.storeDiario", $ejecucion->id_ejecucion_obra) }}`, new FormData(this))
         .then(r => r.success ? reload() : Swal.fire('Error', r.mensaje, 'error'));
     });
+
+    function modificarHoras(idHoras, entrada, salida) {
+        Swal.fire({
+            title: 'Modificar Horas de Trabajo',
+            html:
+                '<div class="text-start">' +
+                '<label class="form-label fw-semibold">Hora Entrada</label>' +
+                '<input type="time" id="swal-entrada" class="swal2-input" value="' + entrada + '" style="margin-bottom:10px;">' +
+                '<label class="form-label fw-semibold">Hora Salida</label>' +
+                '<input type="time" id="swal-salida" class="swal2-input" value="' + salida + '">' +
+                '</div>',
+            focusConfirm: false,
+            preConfirm: () => {
+                return { hora_entrada: document.getElementById('swal-entrada').value, hora_salida: document.getElementById('swal-salida').value };
+            },
+            showCancelButton: true, confirmButtonText: 'Guardar', cancelButtonText: 'Cancelar', confirmButtonColor: '#ffc107'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                saveTabState('pills-horas');
+                postJSON(`/ejecuciones/${EJEC_ID}/diario/${idHoras}/update`, result.value)
+                .then(r => r.success ? reload() : Swal.fire('Error', r.mensaje, 'error'));
+            }
+        });
+    }
 
     function eliminarHoras(id) {
         confirmar('¿Eliminar registro de horas?', () => {
@@ -813,101 +887,28 @@
         .then(r => r.success ? toast('Artículo agregado', 'pills-informe', idInf, 'sub-articulos') : Swal.fire('Error', r.mensaje, 'error'));
     }
 
+    function modificarCantidadInforme(idInf, idArt, cantidadActual) {
+        Swal.fire({
+            title: 'Modificar Cantidad',
+            text: 'Ingrese la nueva cantidad:',
+            input: 'number', inputValue: cantidadActual,
+            inputAttributes: { step: '0.01', min: '0.01' },
+            showCancelButton: true, confirmButtonText: 'Guardar', cancelButtonText: 'Cancelar', confirmButtonColor: '#ffc107'
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                saveTabState('pills-informe', idInf, 'sub-articulos');
+                postJSON(`/ejecuciones/${EJEC_ID}/informe-diario/${idInf}/articulo/${idArt}/update-cantidad`, { cantidad: result.value })
+                .then(r => r.success ? reload() : Swal.fire('Error', r.mensaje, 'error'));
+            }
+        });
+    }
+
     function eliminarArticulo(idInf, idArt) {
         confirmar('¿Remover artículo?', () => {
             saveTabState('pills-informe', idInf, 'sub-articulos');
             postAction(`/ejecuciones/${EJEC_ID}/informe-diario/${idInf}/articulo/${idArt}/delete`)
             .then(r => r.success ? toast('Artículo removido', 'pills-informe', idInf, 'sub-articulos') : Swal.fire('Error', r.mensaje, 'error'));
         });
-    }
-
-    // === BUSCADOR DE ARTICULOS EN MODAL ===
-    var articuloActualInfId = null;
-    var arrArticulos = {!! json_encode($articulos->map(fn($a) => ['id' => $a->id_producto, 'nombre' => $a->nombre])) !!};
-
-    function abrirModalArticulos(informeId) {
-        articuloActualInfId = informeId;
-        document.getElementById('buscadorArticuloModal').value = '';
-        renderizarListaArticulos('');
-        var modal = new bootstrap.Modal(document.getElementById('modalSeleccionarArticulo'));
-        modal.show();
-        setTimeout(function() { document.getElementById('buscadorArticuloModal').focus(); }, 400);
-    }
-
-    function renderizarListaArticulos(busqueda) {
-        var lista = document.getElementById('listaArticulosModal');
-        var sinResultados = document.getElementById('sinResultadosArticulo');
-        var busq = busqueda.toLowerCase().trim();
-        var html = '';
-        var visibles = 0;
-
-        for (var i = 0; i < arrArticulos.length; i++) {
-            var art = arrArticulos[i];
-            var nombreLower = art.nombre.toLowerCase();
-            if (busq === '' || nombreLower.indexOf(busq) !== -1) {
-                html += '<button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2" onclick="seleccionarArticuloModal(' + art.id + ', this.getAttribute(\x27data-nombre\x27))" data-nombre="' + art.nombre.replace(/"/g, '&quot;') + '">' +
-                    '<span>' + art.nombre + '</span>' +
-                    '<i class="fa-solid fa-chevron-right text-muted small"></i>' +
-                    '</button>';
-                visibles++;
-            }
-        }
-
-        lista.innerHTML = html;
-        sinResultados.style.display = visibles === 0 ? '' : 'none';
-    }
-
-    function filtrarArticulosModal() {
-        var busqueda = document.getElementById('buscadorArticuloModal').value;
-        renderizarListaArticulos(busqueda);
-    }
-
-    function seleccionarArticuloModal(id, nombre) {
-        if (!articuloActualInfId) return;
-        document.getElementById('selectArticulo-' + articuloActualInfId).value = id;
-        document.getElementById('nombreArticulo-' + articuloActualInfId).value = nombre;
-        document.getElementById('clearArticulo-' + articuloActualInfId).style.display = '';
-        var modal = bootstrap.Modal.getInstance(document.getElementById('modalSeleccionarArticulo'));
-        if (modal) modal.hide();
-    }
-
-    function limpiarArticulo(informeId) {
-        document.getElementById('selectArticulo-' + informeId).value = '';
-        document.getElementById('nombreArticulo-' + informeId).value = '';
-        document.getElementById('clearArticulo-' + informeId).style.display = 'none';
-    }
-
-    // === BUSCADOR DE ARTICULOS PARA MATERIALES (TAB PRINCIPAL) ===
-    function abrirModalArticuloMat() {
-        document.getElementById('buscadorArticuloModal').value = '';
-        renderizarListaArticulos('');
-        articuloActualInfId = '__mat__';
-        var modal = new bootstrap.Modal(document.getElementById('modalSeleccionarArticulo'));
-        modal.show();
-        setTimeout(function() { document.getElementById('buscadorArticuloModal').focus(); }, 400);
-    }
-
-    function seleccionarArticuloModal(id, nombre) {
-        if (articuloActualInfId === '__mat__') {
-            document.getElementById('mat_id_producto').value = id;
-            document.getElementById('mat_nombre_articulo').value = nombre;
-            document.getElementById('mat_clear_articulo').style.display = '';
-            var modal = bootstrap.Modal.getInstance(document.getElementById('modalSeleccionarArticulo'));
-            if (modal) modal.hide();
-            return;
-        }
-        if (!articuloActualInfId) return;
-        document.getElementById('selectArticulo-' + articuloActualInfId).value = id;
-        document.getElementById('nombreArticulo-' + articuloActualInfId).value = nombre;
-        document.getElementById('clearArticulo-' + articuloActualInfId).style.display = '';
-        var modal = bootstrap.Modal.getInstance(document.getElementById('modalSeleccionarArticulo'));
-        if (modal) modal.hide();
-    }
-
-    function limpiarArticuloMat() {
-        document.getElementById('mat_id_producto').value = '';
-        document.getElementById('mat_nombre_articulo').value = '';
-        document.getElementById('mat_clear_articulo').style.display = 'none';
     }
 
     // === SUB-TAB: IMAGENES ===
@@ -947,5 +948,67 @@
         });
     }
     @endif
+
+    // === EXPORT FUNCTIONS ===
+    document.getElementById('exportMaterialesExcel')?.addEventListener('click', function() {
+        exportTableExcel('tablaMateriales', 'Materiales_Ejecucion_{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}.xlsx', ['Artículo', 'Bodega Origen', 'Cantidad', 'Estado']);
+    });
+    document.getElementById('exportMaterialesPDF')?.addEventListener('click', function() {
+        exportTablePDF('tablaMateriales', 'Materiales_Ejecucion_{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}.pdf', 'Materiales - Ejecución EJEC-{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}');
+    });
+    document.getElementById('exportHorasExcel')?.addEventListener('click', function() {
+        exportTableExcel('tablaHoras', 'Horas_Ejecucion_{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}.xlsx', ['Empleado', 'Entrada', 'Salida', 'H. Normales', 'H. Extras', 'H. Extraord.']);
+    });
+    document.getElementById('exportHorasPDF')?.addEventListener('click', function() {
+        exportTablePDF('tablaHoras', 'Horas_Ejecucion_{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}.pdf', 'Horas de Trabajo - Ejecución EJEC-{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}');
+    });
+
+    function exportTableExcel(tableId, filename, headersOverride) {
+        var table = document.getElementById(tableId);
+        var hasActions = table.querySelector('th:last-child')?.innerText.trim().toUpperCase().includes('ACCION');
+        var colCount = table.querySelector('thead tr th').length;
+        var sliceEnd = hasActions ? colCount - 1 : colCount;
+        var headers = Array.from(table.querySelectorAll('thead tr th')).slice(0, sliceEnd).map(c => c.innerText);
+        if (headersOverride) headers = headersOverride;
+
+        var bodyRows = [];
+        Array.from(table.querySelectorAll('tbody tr')).forEach(row => {
+            if (row.querySelector('td[colspan]')) return;
+            var cols = Array.from(row.cells).slice(0, sliceEnd).map(c => c.innerText.trim());
+            if (cols.length > 0) bodyRows.push(cols);
+        });
+
+        if (bodyRows.length === 0) { Swal.fire('Atención', 'No hay datos para exportar.', 'warning'); return; }
+
+        var workbook = new ExcelJS.Workbook();
+        var ws = workbook.addWorksheet('Datos');
+        ws.columns = headers.map(h => ({ header: h, key: h, width: 30 }));
+        let hRow = ws.getRow(1);
+        hRow.eachCell(cell => { cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FF0B1A30" } }; cell.alignment = { horizontal: "center", vertical: "middle" }; });
+        bodyRows.forEach(row => { var obj = {}; headers.forEach((h, i) => obj[h] = row[i]); ws.addRow(obj); });
+        workbook.xlsx.writeBuffer().then(buffer => { saveAs(new Blob([buffer], { type: "application/octet-stream" }), filename); });
+    }
+
+    function exportTablePDF(tableId, filename, title) {
+        var table = document.getElementById(tableId);
+        var hasActions = table.querySelector('th:last-child')?.innerText.trim().toUpperCase().includes('ACCION');
+        var colCount = table.querySelector('thead tr th').length;
+        var sliceEnd = hasActions ? colCount - 1 : colCount;
+        var headers = Array.from(table.querySelectorAll('thead tr th')).slice(0, sliceEnd).map(c => c.innerText);
+
+        var bodyRows = [];
+        Array.from(table.querySelectorAll('tbody tr')).forEach(row => {
+            if (row.querySelector('td[colspan]')) return;
+            var cols = Array.from(row.cells).slice(0, sliceEnd).map(c => c.innerText.trim());
+            if (cols.length > 0) bodyRows.push(cols);
+        });
+
+        if (bodyRows.length === 0) { Swal.fire('Atención', 'No hay datos para exportar.', 'warning'); return; }
+
+        const doc = new window.jspdf.jsPDF();
+        doc.setFontSize(14); doc.setTextColor(11, 26, 48); doc.text(title, 14, 20);
+        doc.autoTable({ head: [headers], body: bodyRows, startY: 28, headStyles: { fillColor: [11, 26, 48] }, alternateRowStyles: { fillColor: [245, 247, 251] } });
+        doc.save(filename);
+    }
 </script>
 @endsection
