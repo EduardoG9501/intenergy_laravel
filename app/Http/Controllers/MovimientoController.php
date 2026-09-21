@@ -237,9 +237,12 @@ class MovimientoController extends Controller
 
         try {
             DB::transaction(function() use ($request, $mov) {
-                // Porcentajes de la cabecera
-                $porcIva = $mov->iva_porc / 100;
-                $porcDesc = $mov->desc_porc / 100;
+                // Porcentajes: usar los del artículo si se proporcionan, si no los de la cabecera
+                $ivaArticulo = $request->filled('iva_porc') ? floatval($request->iva_porc) : $mov->iva_porc;
+                $descArticulo = $request->filled('desc_porc') ? floatval($request->desc_porc) : $mov->desc_porc;
+
+                $porcIva = $ivaArticulo / 100;
+                $porcDesc = $descArticulo / 100;
 
                 $subtotal = $request->cantidad * $request->precio;
                 $descuento = round($subtotal * $porcDesc, 4);
@@ -258,8 +261,8 @@ class MovimientoController extends Controller
                     'decuento' => $descuento,
                     'iva' => $iva,
                     'total' => $total,
-                    'iva_porc' => $mov->iva_porc,
-                    'desc_porc' => $mov->desc_porc
+                    'iva_porc' => $ivaArticulo,
+                    'desc_porc' => $descArticulo
                 ]);
 
                 $this->recalcularCabecera($mov);
@@ -321,8 +324,9 @@ class MovimientoController extends Controller
                     }
                 }
 
-                $porcIva = $mov->iva_porc / 100;
-                $porcDesc = $mov->desc_porc / 100;
+                // Usar los porcentajes propios del artículo (almacenados en el detalle)
+                $porcIva = $detail->iva_porc / 100;
+                $porcDesc = $detail->desc_porc / 100;
 
                 $subtotal = $request->cantidad * $detail->precio;
                 $descuento = round($subtotal * $porcDesc, 4);
@@ -491,11 +495,11 @@ class MovimientoController extends Controller
                 $mov->desc_porc = $request->desc_porc;
                 $mov->save();
 
-                // Recalcular todos los detalles temporales con los nuevos porcentajes
+                // Recalcular los totales de cada detalle usando los porcentajes propios de cada artículo
                 $detalles = MovimientoDetalleTmp::where('id_movimiento', $mov->id_movimiento)->get();
                 foreach ($detalles as $det) {
-                    $porcIva = $mov->iva_porc / 100;
-                    $porcDesc = $mov->desc_porc / 100;
+                    $porcIva = $det->iva_porc / 100;
+                    $porcDesc = $det->desc_porc / 100;
 
                     $subtotal = $det->cantidad * $det->precio;
                     $descuento = round($subtotal * $porcDesc, 4);
@@ -506,9 +510,7 @@ class MovimientoController extends Controller
                         'subtotal' => $subtotal,
                         'decuento' => $descuento,
                         'iva' => $iva,
-                        'total' => $total,
-                        'iva_porc' => $mov->iva_porc,
-                        'desc_porc' => $mov->desc_porc
+                        'total' => $total
                     ]);
                 }
 

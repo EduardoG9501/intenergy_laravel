@@ -156,7 +156,7 @@
                         </div>
                     @else
                         <!-- Formulario Completo para Compras y otros movimientos -->
-                        <div class="col-md-5">
+                        <div class="col-md-4">
                             <label class="form-label fw-semibold">Artículo *</label>
                             <select class="form-select" name="id_articulo" id="id_articulo" required onchange="setPrecioOriginal(this)">
                                 <option value="" selected disabled>Selecciona Artículo</option>
@@ -168,27 +168,36 @@
                         <div class="col-md-4">
                             <label class="form-label fw-semibold">Bodega de Destino *</label>
                             <select class="form-select" name="id_bodega_lugar" required>
+                                <option value="{{ $movimiento->id_bodega }}" selected>{{ $movimiento->bodega?->nombreBodega }} (Principal)</option>
                                 @foreach($bodegasSecundarias as $sec)
-                                    <option value="{{ $sec->id_bodega }}" @if($sec->id_bodega_principal == $movimiento->id_bodega || $sec->id_bodega == $movimiento->id_bodega) selected @endif>{{ $sec->nombreBodega }}</option>
+                                    <option value="{{ $sec->id_bodega }}">{{ $sec->nombreBodega }}</option>
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-4">
                             <label class="form-label fw-semibold">Lote</label>
                             <input type="text" class="form-control" name="lote" placeholder="Ej. L-2026">
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label fw-semibold">Precio Unitario *</label>
                             <div class="input-group">
                                 <span class="input-group-text">$</span>
                                 <input type="number" step="0.0001" class="form-control" name="precio" id="precio" required placeholder="0.00">
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-2">
                             <label class="form-label fw-semibold">Cantidad *</label>
                             <input type="number" step="0.01" class="form-control" name="cantidad" required placeholder="0.00">
                         </div>
-                        <div class="col-md-4 d-flex align-items-end">
+                        <div class="col-md-2">
+                            <label class="form-label fw-semibold">% IVA</label>
+                            <input type="number" step="0.01" class="form-control" name="iva_porc" id="iva_porc" value="{{ $movimiento->iva_porc }}" min="0" max="100" placeholder="0.00">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-semibold">% Descuento</label>
+                            <input type="number" step="0.01" class="form-control" name="desc_porc" id="desc_porc" value="{{ $movimiento->desc_porc }}" min="0" max="100" placeholder="0.00">
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
                             <button type="submit" class="btn btn-primary-custom w-100 py-2">
                                 <i class="fa-solid fa-plus me-1"></i> Añadir Artículo
                             </button>
@@ -229,6 +238,8 @@
                                 <th>Lote</th>
                                 <th>Precio U.</th>
                                 <th>Cantidad</th>
+                                <th>IVA%</th>
+                                <th>Desc%</th>
                                 <th>Subtotal</th>
                                 <th>Total</th>
                                 @if($movimiento->guardarDefinitivo == 0 && $movimiento->estado == 1)
@@ -268,6 +279,8 @@
                                     <td class="font-monospace">{{ $det->lote ?: 'N/A' }}</td>
                                     <td>${{ number_format($det->precio, 2) }}</td>
                                     <td class="fw-semibold">{{ number_format($det->cantidad, 2) }}</td>
+                                    <td><span class="badge bg-info-subtle text-info">{{ number_format($det->iva_porc, 2) }}%</span></td>
+                                    <td><span class="badge bg-warning-subtle text-warning">{{ number_format($det->desc_porc, 2) }}%</span></td>
                                     <td>${{ number_format($det->subtotal, 2) }}</td>
                                     <td class="fw-bold text-success">${{ number_format($det->total, 2) }}</td>
                                     @if($movimiento->guardarDefinitivo == 0 && $movimiento->estado == 1)
@@ -284,7 +297,7 @@
                             @endif
                         @empty
                             <tr>
-                                <td colspan="{{ ($movimiento->id_sub_tipo_movimiento == 2 || $movimiento->id_sub_tipo_movimiento == 3) ? 5 : 8 }}" class="text-center py-5 text-muted">
+                                <td colspan="{{ ($movimiento->id_sub_tipo_movimiento == 2 || $movimiento->id_sub_tipo_movimiento == 3) ? 5 : 10 }}" class="text-center py-5 text-muted">
                                     <i class="fa-solid fa-box-open fa-2x mb-3 text-warning"></i>
                                     <p class="mb-0">No se han añadido artículos a este movimiento.</p>
                                 </td>
