@@ -3,24 +3,27 @@
 namespace App\Http\Controllers;
 
 use App\Models\Obra;
+use App\Models\Proyecto;
 use Illuminate\Http\Request;
 
 class ObraController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Obra::query();
+        $query = Obra::with('proyecto');
         if ($request->filled('buscar')) {
             $query->where('nombre', 'like', "%{$request->buscar}%");
         }
         $obras = $query->orderBy('id', 'desc')->paginate(15);
-        return view('obras.index', compact('obras'));
+        $proyectos = Proyecto::where('estado', 1)->get();
+        return view('obras.index', compact('obras', 'proyectos'));
     }
 
     public function store(Request $request)
     {
         $request->validate([
-            'nombre' => 'required|max:250'
+            'nombre' => 'required|max:250',
+            'id_proyecto' => 'nullable|exists:proyecto,id'
         ]);
 
         // Normalizar el nombre (trim, uppercase para comparación)
@@ -40,6 +43,7 @@ class ObraController extends Controller
         try {
             Obra::create([
                 'nombre' => $nombre,
+                'id_proyecto' => $request->id_proyecto ?: null,
                 'estado' => 1,
                 'fecha_registro' => now()
             ]);
@@ -52,7 +56,7 @@ class ObraController extends Controller
 
     public function show($id)
     {
-        $obra = Obra::findOrFail($id);
+        $obra = Obra::with('proyecto')->findOrFail($id);
         return response()->json(['success' => true, 'obra' => $obra]);
     }
 
@@ -60,7 +64,8 @@ class ObraController extends Controller
     {
         $obra = Obra::findOrFail($id);
         $request->validate([
-            'nombre' => 'required|max:250'
+            'nombre' => 'required|max:250',
+            'id_proyecto' => 'nullable|exists:proyecto,id'
         ]);
 
         // Normalizar el nombre
@@ -81,7 +86,8 @@ class ObraController extends Controller
 
         try {
             $obra->update([
-                'nombre' => $nombre
+                'nombre' => $nombre,
+                'id_proyecto' => $request->id_proyecto ?: null
             ]);
             return response()->json(['success' => true, 'mensaje' => 'Obra actualizada correctamente.']);
         } catch (\Exception $e) {

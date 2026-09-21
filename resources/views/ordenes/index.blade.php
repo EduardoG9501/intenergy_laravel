@@ -36,7 +36,7 @@
 </div>
 
 <!-- Listado de Órdenes de Trabajo -->
-<div class="card card-custom p-0 overflow-hidden">
+<div class="card card-custom p-0 overflow-visible">
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
             <thead class="table-dark">

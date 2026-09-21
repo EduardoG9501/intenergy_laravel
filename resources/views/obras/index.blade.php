@@ -41,11 +41,12 @@
         <table class="table table-hover align-middle mb-0">
             <thead class="table-dark">
                 <tr>
-                    <th class="ps-4" style="width: 10%;">ID</th>
-                    <th style="width: 50%;">Nombre de la Obra</th>
-                    <th style="width: 20%;">Fecha Registro</th>
-                    <th style="width: 10%;">Estado</th>
-                    <th class="text-center pe-4" style="width: 10%;">Acciones</th>
+                    <th class="ps-4" style="width: 8%;">ID</th>
+                    <th style="width: 35%;">Nombre de la Obra</th>
+                    <th style="width: 25%;">Proyecto</th>
+                    <th style="width: 17%;">Fecha Registro</th>
+                    <th style="width: 8%;">Estado</th>
+                    <th class="text-center pe-4" style="width: 7%;">Acciones</th>
                 </tr>
             </thead>
             <tbody>
@@ -53,6 +54,13 @@
                     <tr class="@if($o->estado == 0) table-light text-muted @endif">
                         <td class="ps-4 fw-bold font-monospace">{{ $o->id }}</td>
                         <td class="fw-semibold">{{ $o->nombre }}</td>
+                        <td>
+                            @if($o->proyecto)
+                                <span class="badge bg-info-subtle text-info">{{ $o->proyecto->nombre }}</span>
+                            @else
+                                <span class="text-muted small">Sin proyecto</span>
+                            @endif
+                        </td>
                         <td>{{ $o->fecha_registro }}</td>
                         <td>
                             @if($o->estado == 1)
@@ -84,7 +92,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="text-center py-5 text-muted">
+                        <td colspan="6" class="text-center py-5 text-muted">
                             <i class="fa-solid fa-helmet-safety fa-2x mb-3 text-warning"></i>
                             <p class="mb-0">No se encontraron obras registradas.</p>
                         </td>
@@ -114,6 +122,15 @@
                 @csrf
                 <div class="modal-body py-4">
                     <div class="mb-3">
+                        <label class="form-label fw-semibold">Proyecto</label>
+                        <select class="form-select" name="id_proyecto">
+                            <option value="" selected>Sin Proyecto</option>
+                            @foreach($proyectos as $p)
+                                <option value="{{ $p->id }}">{{ $p->id }} - {{ $p->nombre }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label fw-semibold">Nombre de la Obra *</label>
                         <input type="text" class="form-control" name="nombre" required placeholder="Ej. Subestación Norte 60KV">
                     </div>
@@ -139,6 +156,15 @@
                 @csrf
                 <input type="hidden" name="id" id="edit_id">
                 <div class="modal-body py-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Proyecto</label>
+                        <select class="form-select" name="id_proyecto" id="edit_id_proyecto">
+                            <option value="">Sin Proyecto</option>
+                            @foreach($proyectos as $p)
+                                <option value="{{ $p->id }}">{{ $p->id }} - {{ $p->nombre }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Nombre de la Obra *</label>
                         <input type="text" class="form-control" name="nombre" id="edit_nombre" required placeholder="Ej. Subestación Norte 60KV">
@@ -202,6 +228,7 @@
             if (r.success) {
                 document.getElementById('edit_id').value = r.obra.id;
                 document.getElementById('edit_nombre').value = r.obra.nombre;
+                document.getElementById('edit_id_proyecto').value = r.obra.id_proyecto || '';
                 const modal = new bootstrap.Modal(document.getElementById('modalEdit'));
                 modal.show();
             }

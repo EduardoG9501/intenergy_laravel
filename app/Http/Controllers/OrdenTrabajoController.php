@@ -198,6 +198,11 @@ class OrdenTrabajoController extends Controller
                      ->where('estado', 1)
                      ->get(['id', 'nombre']);
 
+        // Si el proyecto no tiene obras asignadas, mostrar todas las activas
+        if ($obras->isEmpty()) {
+            $obras = Obra::where('estado', 1)->get(['id', 'nombre']);
+        }
+
         return response()->json(['success' => true, 'obras' => $obras]);
     }
 }
