@@ -129,6 +129,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/pedidos/{id}/update', [App\Http\Controllers\PedidoMaterialController::class, 'update'])->name('pedidos.update');
     Route::post('/pedidos/{id}/detalle', [App\Http\Controllers\PedidoMaterialController::class, 'storeDetail'])->name('pedidos.storeDetail');
     Route::post('/pedidos/{id}/detalle/{id_detail}/delete', [App\Http\Controllers\PedidoMaterialController::class, 'deleteDetail'])->name('pedidos.deleteDetail');
+    Route::post('/pedidos/{id}/detalle/{id_detail}/update-cantidad', [App\Http\Controllers\PedidoMaterialController::class, 'updateDetailCantidad'])->name('pedidos.updateDetailCantidad');
     Route::post('/pedidos/{id}/status', [App\Http\Controllers\PedidoMaterialController::class, 'updateStatus'])->name('pedidos.updateStatus');
 
     // Rutas de Solicitudes de Materiales

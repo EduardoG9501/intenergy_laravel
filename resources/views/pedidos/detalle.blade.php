@@ -124,18 +124,26 @@
 
         <!-- Tabla de Detalles -->
         <div class="card card-custom p-0 overflow-hidden">
-            <div class="card-header bg-dark text-white py-3">
+            <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center">
                 <h5 class="fw-bold mb-0">Listado de Materiales Solicitados</h5>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-success fw-semibold" id="exportExcel">
+                        <i class="fa-solid fa-file-excel me-1"></i> Excel
+                    </button>
+                    <button type="button" class="btn btn-sm btn-danger fw-semibold" id="exportPDF">
+                        <i class="fa-solid fa-file-pdf me-1"></i> PDF
+                    </button>
+                </div>
             </div>
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table table-hover align-middle mb-0" id="tablaPedidoDetalle">
                     <thead class="table-light">
                         <tr>
                             <th class="ps-4" style="width: 15%;">Código Barra</th>
-                            <th style="width: 55%;">Artículo</th>
+                            <th style="width: 45%;">Artículo</th>
                             <th style="width: 15%;">Cantidad</th>
                             @if($pedido->id_estado_pedido_material == 1)
-                                <th class="text-center pe-4" style="width: 15%;">Acciones</th>
+                                <th class="text-center pe-4" style="width: 25%;">Acciones</th>
                             @endif
                         </tr>
                     </thead>
@@ -150,6 +158,9 @@
                                 <td class="fw-bold text-primary">{{ number_format($det->cantidad, 2) }}</td>
                                 @if($pedido->id_estado_pedido_material == 1)
                                     <td class="text-center pe-4">
+                                        <button class="btn btn-sm btn-outline-warning me-1" onclick="modificarCantidad({{ $det->id_pedido_material_detalle }}, {{ $det->cantidad }})" title="Editar cantidad">
+                                            <i class="fa-solid fa-pen-to-square"></i>
+                                        </button>
                                         <button class="btn btn-sm btn-outline-danger" onclick="eliminarDetalle({{ $det->id_pedido_material_detalle }})">
                                             <i class="fa-solid fa-trash-can"></i>
                                         </button>
@@ -290,5 +301,136 @@
             }
         });
     }
+
+    // Modificar cantidad
+    function modificarCantidad(idDetail, cantidadActual) {
+        Swal.fire({
+            title: 'Modificar Cantidad',
+            text: 'Ingrese la nueva cantidad para el material:',
+            input: 'number',
+            inputValue: cantidadActual,
+            inputAttributes: {
+                step: '0.01',
+                min: '0.01'
+            },
+            showCancelButton: true,
+            confirmButtonText: 'Guardar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#ffc107'
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                fetch(`/pedidos/{{ $pedido->id_pedido_material }}/detalle/${idDetail}/update-cantidad`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ cantidad: result.value })
+                })
+                .then(resp => resp.json())
+                .then(r => {
+                    if (r.success) {
+                        location.reload();
+                    } else {
+                        Swal.fire('Error', r.mensaje, 'error');
+                    }
+                })
+                .catch(err => {
+                    Swal.fire('Error', 'Hubo un error al actualizar la cantidad.', 'error');
+                });
+            }
+        });
+    }
+</script>
+
+<!-- ExcelJS y FileSaver -->
+<script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<!-- jsPDF y AutoTable -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.7.0/jspdf.plugin.autotable.min.js"></script>
+
+<script>
+    // Export Excel
+    document.getElementById('exportExcel')?.addEventListener('click', function() {
+        var table = document.getElementById('tablaPedidoDetalle');
+        var headers = Array.from(table.querySelectorAll('thead tr th')).slice(0, -1).map(cell => cell.innerText);
+
+        var bodyRows = [];
+        Array.from(table.querySelectorAll('tbody tr')).forEach(row => {
+            var cols = Array.from(row.cells).slice(0, -1).map(cell => cell.innerText.trim());
+            if (cols.length > 1) bodyRows.push(cols);
+        });
+
+        if (bodyRows.length === 0) {
+            Swal.fire('Atención', 'No hay materiales para exportar.', 'warning');
+            return;
+        }
+
+        var workbook = new ExcelJS.Workbook();
+        var worksheet = workbook.addWorksheet('Pedido Materiales');
+
+        worksheet.columns = [
+            { header: 'Código Barra', key: 'codigo', width: 20 },
+            { header: 'Artículo', key: 'articulo', width: 50 },
+            { header: 'Cantidad', key: 'cantidad', width: 15 }
+        ];
+
+        let headerRow = worksheet.getRow(1);
+        headerRow.eachCell(cell => {
+            cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FF0B1A30" } };
+            cell.alignment = { horizontal: "center", vertical: "middle" };
+        });
+
+        bodyRows.forEach(row => {
+            worksheet.addRow({
+                codigo: row[0],
+                articulo: row[1],
+                cantidad: row[2]
+            });
+        });
+
+        workbook.xlsx.writeBuffer().then(function(buffer) {
+            saveAs(new Blob([buffer], { type: "application/octet-stream" }), "Pedido_Materiales_PED-{{ str_pad($pedido->id_pedido_material, 5, '0', STR_PAD_LEFT) }}.xlsx");
+        });
+    });
+
+    // Export PDF
+    document.getElementById('exportPDF')?.addEventListener('click', function() {
+        var table = document.getElementById('tablaPedidoDetalle');
+        var headers = Array.from(table.querySelectorAll('thead tr th')).slice(0, -1).map(cell => cell.innerText);
+
+        var bodyRows = [];
+        Array.from(table.querySelectorAll('tbody tr')).forEach(row => {
+            var cols = Array.from(row.cells).slice(0, -1).map(cell => cell.innerText.trim());
+            if (cols.length > 1) bodyRows.push(cols);
+        });
+
+        if (bodyRows.length === 0) {
+            Swal.fire('Atención', 'No hay materiales para exportar.', 'warning');
+            return;
+        }
+
+        const doc = new window.jspdf.jsPDF();
+        doc.setFontSize(16);
+        doc.setTextColor(11, 26, 48);
+        doc.text("Pedido de Materiales: PED-{{ str_pad($pedido->id_pedido_material, 5, '0', STR_PAD_LEFT) }}", 14, 20);
+
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text("OT: {{ $pedido->orden?->identificador }} | Obra: {{ $pedido->orden?->obra?->nombre }} | Fecha: {{ $pedido->fecha_solicitud }}", 14, 30);
+
+        doc.autoTable({
+            head: [headers],
+            body: bodyRows,
+            startY: 38,
+            headStyles: { fillColor: [11, 26, 48] },
+            alternateRowStyles: { fillColor: [245, 247, 251] }
+        });
+
+        doc.save("Pedido_Materiales_PED-{{ str_pad($pedido->id_pedido_material, 5, '0', STR_PAD_LEFT) }}.pdf");
+    });
 </script>
 @endsection

@@ -145,6 +145,26 @@ class PedidoMaterialController extends Controller
         }
     }
 
+    public function updateDetailCantidad(Request $request, $id_pedido, $id_detail)
+    {
+        $request->validate([
+            'cantidad' => 'required|numeric|min:0.01'
+        ]);
+
+        try {
+            $detalle = PedidoMaterialDetalle::where('id_pedido_material_detalle', $id_detail)
+                                            ->where('id_pedido_material', $id_pedido)
+                                            ->firstOrFail();
+
+            $detalle->cantidad = $request->cantidad;
+            $detalle->save();
+
+            return response()->json(['success' => true, 'mensaje' => 'Cantidad actualizada correctamente.']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'mensaje' => 'Error al actualizar cantidad: ' . $e->getMessage()]);
+        }
+    }
+
     public function updateStatus(Request $request, $id)
     {
         $request->validate([
