@@ -309,6 +309,18 @@
 
             <!-- TAB INFORME DIARIO -->
             <div class="tab-pane fade" id="pills-informe" role="tabpanel" aria-labelledby="pills-informe-tab">
+                <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center mb-3 rounded">
+                    <h5 class="fw-bold mb-0"><i class="fa-solid fa-file-lines me-2"></i> Informes Diarios</h5>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-success fw-semibold" id="exportInformeCompleto">
+                            <i class="fa-solid fa-file-excel me-1"></i> Excel
+                        </button>
+                        <button type="button" class="btn btn-sm btn-danger fw-semibold" id="exportInformeCompletoPDF">
+                            <i class="fa-solid fa-file-pdf me-1"></i> PDF
+                        </button>
+                    </div>
+                </div>
+
                 @if($ejecucion->id_estado_ejecucion_obra == 1)
                     <div class="card card-custom p-4 mb-4">
                         <h4 class="fw-bold mb-3">Registrar Informe Diario</h4>
@@ -668,7 +680,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.7.0/jspdf.plugin.autotable.min.js"></script>
 
 <script>
-    @if($ejecucion->id_estado_ejecucion_obra == 1)
     const EJEC_ID = {{ $ejecucion->id_ejecucion_obra }};
     const CSRF_TOKEN = '{{ csrf_token() }}';
 
@@ -747,7 +758,7 @@
     });
 
     // === MAIN TAB: MATERIALES ===
-    document.getElementById('formAddMaterial').addEventListener('submit', function(e) {
+    document.getElementById('formAddMaterial')?.addEventListener('submit', function(e) {
         e.preventDefault();
         saveTabState('pills-materiales');
         postForm(`{{ route("ejecuciones.storeDetail", $ejecucion->id_ejecucion_obra) }}`, new FormData(this))
@@ -779,7 +790,7 @@
     }
 
     // === MAIN TAB: MANO DE OBRA ===
-    document.getElementById('formAddHoras').addEventListener('submit', function(e) {
+    document.getElementById('formAddHoras')?.addEventListener('submit', function(e) {
         e.preventDefault();
         saveTabState('pills-horas');
         postForm(`{{ route("ejecuciones.storeDiario", $ejecucion->id_ejecucion_obra) }}`, new FormData(this))
@@ -830,7 +841,7 @@
     }
 
     // === MAIN TAB: INFORME DIARIO ===
-    document.getElementById('formAddInforme').addEventListener('submit', function(e) {
+    document.getElementById('formAddInforme')?.addEventListener('submit', function(e) {
         e.preventDefault();
         saveTabState('pills-informe');
         postForm(`{{ route("ejecuciones.storeInformeDiario", $ejecucion->id_ejecucion_obra) }}`, new FormData(this))
@@ -845,7 +856,7 @@
         new bootstrap.Modal(document.getElementById('modalEditInforme')).show();
     }
 
-    document.getElementById('formEditInforme').addEventListener('submit', function(e) {
+    document.getElementById('formEditInforme')?.addEventListener('submit', function(e) {
         e.preventDefault();
         const id = document.getElementById('edit_id_informe').value;
         saveTabState('pills-informe');
@@ -947,68 +958,175 @@
             .then(r => r.success ? toast('Descripción eliminada', 'pills-informe', idInf, 'sub-descripcion') : Swal.fire('Error', r.mensaje, 'error'));
         });
     }
-    @endif
 
     // === EXPORT FUNCTIONS ===
+    // Export Materiales
     document.getElementById('exportMaterialesExcel')?.addEventListener('click', function() {
-        exportTableExcel('tablaMateriales', 'Materiales_Ejecucion_{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}.xlsx', ['Artículo', 'Bodega Origen', 'Cantidad', 'Estado']);
+        var table = document.getElementById('tablaMateriales');
+        if (!table) return;
+        var hasAcciones = table.querySelector('th.text-center')?.innerText.trim().toUpperCase().includes('ACCION');
+        var lastIdx = hasAcciones ? table.querySelectorAll('thead tr th').length - 1 : 99;
+        var headers = ['Artículo', 'Bodega Origen', 'Cantidad', 'Estado'];
+        var bodyRows = [];
+        Array.from(table.querySelectorAll('tbody tr')).forEach(row => {
+            if (row.querySelector('td[colspan]')) return;
+            var cells = Array.from(row.cells);
+            if (hasAcciones) cells.pop();
+            bodyRows.push(cells.map(c => c.innerText.trim()));
+        });
+        if (bodyRows.length === 0) { Swal.fire('Atención', 'No hay datos para exportar.', 'warning'); return; }
+        var workbook = new ExcelJS.Workbook();
+        var ws = workbook.addWorksheet('Materiales');
+        ws.columns = headers.map(h => ({ header: h, key: h, width: 35 }));
+        ws.getRow(1).eachCell(cell => { cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FF0B1A30" } }; });
+        bodyRows.forEach(row => { var obj = {}; headers.forEach((h, i) => obj[h] = row[i]); ws.addRow(obj); });
+        workbook.xlsx.writeBuffer().then(buffer => { saveAs(new Blob([buffer], { type: "application/octet-stream" }), 'Materiales_Ejecucion_{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}.xlsx'); });
     });
     document.getElementById('exportMaterialesPDF')?.addEventListener('click', function() {
-        exportTablePDF('tablaMateriales', 'Materiales_Ejecucion_{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}.pdf', 'Materiales - Ejecución EJEC-{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}');
+        var table = document.getElementById('tablaMateriales');
+        if (!table) return;
+        var hasAcciones = table.querySelector('th.text-center')?.innerText.trim().toUpperCase().includes('ACCION');
+        var headers = ['Artículo', 'Bodega Origen', 'Cantidad', 'Estado'];
+        var bodyRows = [];
+        Array.from(table.querySelectorAll('tbody tr')).forEach(row => {
+            if (row.querySelector('td[colspan]')) return;
+            var cells = Array.from(row.cells);
+            if (hasAcciones) cells.pop();
+            bodyRows.push(cells.map(c => c.innerText.trim()));
+        });
+        if (bodyRows.length === 0) { Swal.fire('Atención', 'No hay datos para exportar.', 'warning'); return; }
+        const doc = new window.jspdf.jsPDF();
+        doc.setFontSize(14); doc.setTextColor(11, 26, 48);
+        doc.text('Materiales - Ejecución EJEC-{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}', 14, 20);
+        doc.autoTable({ head: [headers], body: bodyRows, startY: 28, headStyles: { fillColor: [11, 26, 48] }, alternateRowStyles: { fillColor: [245, 247, 251] } });
+        doc.save('Materiales_Ejecucion_{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}.pdf');
     });
+
+    // Export Horas
     document.getElementById('exportHorasExcel')?.addEventListener('click', function() {
-        exportTableExcel('tablaHoras', 'Horas_Ejecucion_{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}.xlsx', ['Empleado', 'Entrada', 'Salida', 'H. Normales', 'H. Extras', 'H. Extraord.']);
+        var table = document.getElementById('tablaHoras');
+        if (!table) return;
+        var hasAcciones = table.querySelector('th.text-center')?.innerText.trim().toUpperCase().includes('ACCION');
+        var headers = ['Empleado', 'Entrada', 'Salida', 'H. Normales', 'H. Extras', 'H. Extraord.'];
+        var bodyRows = [];
+        Array.from(table.querySelectorAll('tbody tr')).forEach(row => {
+            if (row.querySelector('td[colspan]')) return;
+            var cells = Array.from(row.cells);
+            if (hasAcciones) cells.pop();
+            bodyRows.push(cells.map(c => c.innerText.trim()));
+        });
+        if (bodyRows.length === 0) { Swal.fire('Atención', 'No hay datos para exportar.', 'warning'); return; }
+        var workbook = new ExcelJS.Workbook();
+        var ws = workbook.addWorksheet('Horas');
+        ws.columns = headers.map(h => ({ header: h, key: h, width: 25 }));
+        ws.getRow(1).eachCell(cell => { cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FF0B1A30" } }; });
+        bodyRows.forEach(row => { var obj = {}; headers.forEach((h, i) => obj[h] = row[i]); ws.addRow(obj); });
+        workbook.xlsx.writeBuffer().then(buffer => { saveAs(new Blob([buffer], { type: "application/octet-stream" }), 'Horas_Ejecucion_{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}.xlsx'); });
     });
     document.getElementById('exportHorasPDF')?.addEventListener('click', function() {
-        exportTablePDF('tablaHoras', 'Horas_Ejecucion_{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}.pdf', 'Horas de Trabajo - Ejecución EJEC-{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}');
+        var table = document.getElementById('tablaHoras');
+        if (!table) return;
+        var hasAcciones = table.querySelector('th.text-center')?.innerText.trim().toUpperCase().includes('ACCION');
+        var headers = ['Empleado', 'Entrada', 'Salida', 'H. Normales', 'H. Extras', 'H. Extraord.'];
+        var bodyRows = [];
+        Array.from(table.querySelectorAll('tbody tr')).forEach(row => {
+            if (row.querySelector('td[colspan]')) return;
+            var cells = Array.from(row.cells);
+            if (hasAcciones) cells.pop();
+            bodyRows.push(cells.map(c => c.innerText.trim()));
+        });
+        if (bodyRows.length === 0) { Swal.fire('Atención', 'No hay datos para exportar.', 'warning'); return; }
+        const doc = new window.jspdf.jsPDF();
+        doc.setFontSize(14); doc.setTextColor(11, 26, 48);
+        doc.text('Horas de Trabajo - Ejecución EJEC-{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}', 14, 20);
+        doc.autoTable({ head: [headers], body: bodyRows, startY: 28, headStyles: { fillColor: [11, 26, 48] }, alternateRowStyles: { fillColor: [245, 247, 251] } });
+        doc.save('Horas_Ejecucion_{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}.pdf');
     });
 
-    function exportTableExcel(tableId, filename, headersOverride) {
-        var table = document.getElementById(tableId);
-        var hasActions = table.querySelector('th:last-child')?.innerText.trim().toUpperCase().includes('ACCION');
-        var colCount = table.querySelector('thead tr th').length;
-        var sliceEnd = hasActions ? colCount - 1 : colCount;
-        var headers = Array.from(table.querySelectorAll('thead tr th')).slice(0, sliceEnd).map(c => c.innerText);
-        if (headersOverride) headers = headersOverride;
+    // Export Informe Diario completo (todos los sub-tabs)
+    document.getElementById('exportInformeCompleto')?.addEventListener('click', function() {
+        var informesData = {!! json_encode($informesDiarios->map(fn($inf) => [
+            'id' => $inf->id_informe_diario_ejecucion,
+            'fecha' => $inf->fecha,
+            'descripcion' => $inf->descripcion,
+            'observacion' => $inf->observacion,
+            'lugar' => $inf->lugar,
+            'empleados' => $inf->empleados->map(fn($e) => $e->empleado?->nombres_apellidos ?? 'N/A'),
+            'articulos' => $inf->articulos->map(fn($a) => ['nombre' => $a->producto?->nombre ?? 'N/A', 'cantidad' => $a->cantidad, 'lote' => $a->lote]),
+            'descripciones' => $inf->detalles->map(fn($d) => $d->descripcion),
+        ])) !!};
 
-        var bodyRows = [];
-        Array.from(table.querySelectorAll('tbody tr')).forEach(row => {
-            if (row.querySelector('td[colspan]')) return;
-            var cols = Array.from(row.cells).slice(0, sliceEnd).map(c => c.innerText.trim());
-            if (cols.length > 0) bodyRows.push(cols);
-        });
-
-        if (bodyRows.length === 0) { Swal.fire('Atención', 'No hay datos para exportar.', 'warning'); return; }
+        if (informesData.length === 0) { Swal.fire('Atención', 'No hay informes diarios para exportar.', 'warning'); return; }
 
         var workbook = new ExcelJS.Workbook();
-        var ws = workbook.addWorksheet('Datos');
-        ws.columns = headers.map(h => ({ header: h, key: h, width: 30 }));
-        let hRow = ws.getRow(1);
-        hRow.eachCell(cell => { cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FF0B1A30" } }; cell.alignment = { horizontal: "center", vertical: "middle" }; });
-        bodyRows.forEach(row => { var obj = {}; headers.forEach((h, i) => obj[h] = row[i]); ws.addRow(obj); });
-        workbook.xlsx.writeBuffer().then(buffer => { saveAs(new Blob([buffer], { type: "application/octet-stream" }), filename); });
-    }
+        var ws = workbook.addWorksheet('Informes Diarios');
+        ws.columns = [
+            { header: 'ID Informe', key: 'id', width: 15 },
+            { header: 'Fecha', key: 'fecha', width: 15 },
+            { header: 'Descripción', key: 'descripcion', width: 30 },
+            { header: 'Observación', key: 'observacion', width: 30 },
+            { header: 'Lugar', key: 'lugar', width: 20 },
+            { header: 'Empleados', key: 'empleados', width: 40 },
+            { header: 'Artículos', key: 'articulos', width: 50 },
+            { header: 'Descripciones', key: 'descripciones', width: 40 }
+        ];
+        ws.getRow(1).eachCell(cell => { cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FF0B1A30" } }; });
 
-    function exportTablePDF(tableId, filename, title) {
-        var table = document.getElementById(tableId);
-        var hasActions = table.querySelector('th:last-child')?.innerText.trim().toUpperCase().includes('ACCION');
-        var colCount = table.querySelector('thead tr th').length;
-        var sliceEnd = hasActions ? colCount - 1 : colCount;
-        var headers = Array.from(table.querySelectorAll('thead tr th')).slice(0, sliceEnd).map(c => c.innerText);
-
-        var bodyRows = [];
-        Array.from(table.querySelectorAll('tbody tr')).forEach(row => {
-            if (row.querySelector('td[colspan]')) return;
-            var cols = Array.from(row.cells).slice(0, sliceEnd).map(c => c.innerText.trim());
-            if (cols.length > 0) bodyRows.push(cols);
+        informesData.forEach(inf => {
+            var arts = inf.articulos.map(a => a.nombre + ' (x' + a.cantidad + ')' + (a.lote ? ' Lote:' + a.lote : '')).join(', ');
+            var emps = inf.empleados.join(', ');
+            var descs = inf.descripciones.join(' | ');
+            ws.addRow({
+                id: 'INF-' + String(inf.id).padStart(5, '0'),
+                fecha: inf.fecha,
+                descripcion: inf.descripcion || 'Sin descripción',
+                observacion: inf.observacion || 'Sin observación',
+                lugar: inf.lugar || 'N/A',
+                empleados: emps || 'Sin empleados',
+                articulos: arts || 'Sin artículos',
+                descripciones: descs || 'Sin descripciones'
+            });
         });
 
-        if (bodyRows.length === 0) { Swal.fire('Atención', 'No hay datos para exportar.', 'warning'); return; }
+        workbook.xlsx.writeBuffer().then(buffer => { saveAs(new Blob([buffer], { type: "application/octet-stream" }), 'Informes_Diarios_EJEC-{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}.xlsx'); });
+    });
 
-        const doc = new window.jspdf.jsPDF();
-        doc.setFontSize(14); doc.setTextColor(11, 26, 48); doc.text(title, 14, 20);
-        doc.autoTable({ head: [headers], body: bodyRows, startY: 28, headStyles: { fillColor: [11, 26, 48] }, alternateRowStyles: { fillColor: [245, 247, 251] } });
-        doc.save(filename);
-    }
+    document.getElementById('exportInformeCompletoPDF')?.addEventListener('click', function() {
+        var informesData = {!! json_encode($informesDiarios->map(fn($inf) => [
+            'id' => $inf->id_informe_diario_ejecucion,
+            'fecha' => $inf->fecha,
+            'descripcion' => $inf->descripcion,
+            'observacion' => $inf->observacion,
+            'lugar' => $inf->lugar,
+            'empleados' => $inf->empleados->map(fn($e) => $e->empleado?->nombres_apellidos ?? 'N/A'),
+            'articulos' => $inf->articulos->map(fn($a) => ['nombre' => $a->producto?->nombre ?? 'N/A', 'cantidad' => $a->cantidad, 'lote' => $a->lote]),
+            'descripciones' => $inf->detalles->map(fn($d) => $d->descripcion),
+        ])) !!};
+
+        if (informesData.length === 0) { Swal.fire('Atención', 'No hay informes diarios para exportar.', 'warning'); return; }
+
+        const doc = new window.jspdf.jsPDF('p', 'mm', 'a4');
+        doc.setFontSize(16); doc.setTextColor(11, 26, 48);
+        doc.text('Informes Diarios - EJEC-{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}', 14, 15);
+
+        var y = 25;
+        informesData.forEach((inf, idx) => {
+            if (y > 260) { doc.addPage(); y = 15; }
+            doc.setFontSize(11); doc.setTextColor(11, 26, 48); doc.setFont(undefined, 'bold');
+            doc.text('INF-' + String(inf.id).padStart(5, '0') + ' | Fecha: ' + inf.fecha + (inf.lugar ? ' | Lugar: ' + inf.lugar : ''), 14, y);
+            y += 6; doc.setFont(undefined, 'normal'); doc.setFontSize(9); doc.setTextColor(80);
+            if (inf.descripcion) { doc.text('Descripción: ' + inf.descripcion, 14, y); y += 5; }
+            if (inf.observacion) { doc.text('Observación: ' + inf.observacion, 14, y); y += 5; }
+            if (inf.empleados.length > 0) { doc.text('Empleados: ' + inf.empleados.join(', '), 14, y); y += 5; }
+            if (inf.articulos.length > 0) {
+                var arts = inf.articulos.map(a => a.nombre + ' (x' + a.cantidad + ')' + (a.lote ? ' Lote:' + a.lote : '')).join(', ');
+                doc.text('Artículos: ' + arts, 14, y); y += 5;
+            }
+            if (inf.descripciones.length > 0) { doc.text('Descripciones: ' + inf.descripciones.join(' | '), 14, y); y += 5; }
+            y += 4;
+        });
+
+        doc.save('Informes_Diarios_EJEC-{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}.pdf');
+    });
 </script>
 @endsection
