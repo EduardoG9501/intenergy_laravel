@@ -212,6 +212,11 @@
             <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center">
                 <h5 class="fw-bold mb-0">LISTA DE ARTÍCULOS</h5>
                 <div class="d-flex gap-2">
+                    @if($movimiento->guardarDefinitivo == 0 && $movimiento->estado == 1 && $movimiento->id_sub_tipo_movimiento != 2 && $movimiento->id_sub_tipo_movimiento != 3)
+                        <button type="button" class="btn btn-sm btn-outline-light fw-semibold" onclick="actualizarTodosIvaDesc()" title="Actualizar IVA y Descuento a todos los artículos">
+                            <i class="fa-solid fa-calculator me-1"></i> Actualizar Todos
+                        </button>
+                    @endif
                     <button type="button" class="btn btn-sm btn-success fw-semibold" id="exportExcel">
                         <i class="fa-solid fa-file-excel me-1"></i> Excel
                     </button>
@@ -285,6 +290,9 @@
                                     <td class="fw-bold text-success">${{ number_format($det->total, 2) }}</td>
                                     @if($movimiento->guardarDefinitivo == 0 && $movimiento->estado == 1)
                                         <td class="text-center pe-4">
+                                            <button class="btn btn-sm btn-outline-info me-1" onclick="modificarIvaDesc({{ $det->id_movimientos_detalle_tmp }}, {{ $det->iva_porc }}, {{ $det->desc_porc }})" title="Editar IVA / Descuento">
+                                                <i class="fa-solid fa-calculator"></i>
+                                            </button>
                                             <button class="btn btn-sm btn-outline-warning me-1" onclick="modificarCantidad({{ $det->id_movimientos_detalle_tmp }}, {{ $det->cantidad }})" title="Editar cantidad">
                                                 <i class="fa-solid fa-pen-to-square"></i>
                                             </button>
@@ -343,6 +351,14 @@
         .catch(err => {
             Swal.fire('Error', 'Hubo un error al añadir el artículo.', 'error');
         });
+    });
+
+    // Enviar formulario con Enter en cualquier campo
+    document.getElementById('formAddDetail').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') {
+            e.preventDefault();
+            this.dispatchEvent(new Event('submit'));
+        }
     });
 
     // Eliminar artículo
@@ -454,6 +470,122 @@
                 })
                 .catch(err => {
                     Swal.fire('Error', 'Hubo un error al actualizar la cantidad.', 'error');
+                });
+            }
+        });
+    }
+
+    // Modificar IVA y Descuento de un artículo
+    function modificarIvaDesc(idDetail, ivaActual, descActual) {
+        Swal.fire({
+            title: 'Modificar IVA y Descuento',
+            html:
+                '<div class="text-start">' +
+                    '<label class="form-label fw-semibold">% IVA</label>' +
+                    '<input type="number" id="swalIva" class="swal2-input" step="0.01" min="0" max="100" value="' + ivaActual + '" style="margin-bottom: 10px;">' +
+                    '<label class="form-label fw-semibold">% Descuento</label>' +
+                    '<input type="number" id="swalDesc" class="swal2-input" step="0.01" min="0" max="100" value="' + descActual + '">' +
+                '</div>',
+            focusConfirm: false,
+            showCancelButton: true,
+            confirmButtonText: 'Guardar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#0d6efd',
+            preConfirm: () => {
+                const iva = document.getElementById('swalIva').value;
+                const desc = document.getElementById('swalDesc').value;
+                if (iva === '' || desc === '') {
+                    Swal.showValidationMessage('Debe completar ambos campos');
+                    return false;
+                }
+                return { iva_porc: parseFloat(iva), desc_porc: parseFloat(desc) }
+            }
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                fetch(`/movimientos/{{ $movimiento->id_movimiento }}/detalle/${idDetail}/update-iva-descuento`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify(result.value)
+                })
+                .then(resp => resp.json())
+                .then(r => {
+                    if (r.success) {
+                        location.reload();
+                    } else {
+                        Swal.fire('Error', r.mensaje, 'error');
+                    }
+                })
+                .catch(err => {
+                    Swal.fire('Error', 'Hubo un error al actualizar IVA/Descuento.', 'error');
+                });
+            }
+        });
+    }
+
+    // Actualizar IVA y Descuento a TODOS los artículos
+    function actualizarTodosIvaDesc() {
+        Swal.fire({
+            title: 'Actualizar IVA y Descuento a TODOS',
+            text: 'Se aplicará el mismo porcentaje de IVA y Descuento a todos los artículos del movimiento.',
+            html:
+                '<div class="text-start">' +
+                    '<label class="form-label fw-semibold">% IVA para todos</label>' +
+                    '<input type="number" id="swalIvaAll" class="swal2-input" step="0.01" min="0" max="100" value="15.00" style="margin-bottom: 10px;">' +
+                    '<label class="form-label fw-semibold">% Descuento para todos</label>' +
+                    '<input type="number" id="swalDescAll" class="swal2-input" step="0.01" min="0" max="100" value="0.00">' +
+                '</div>',
+            focusConfirm: false,
+            showCancelButton: true,
+            confirmButtonText: 'Aplicar a Todos',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#198754',
+            preConfirm: () => {
+                const iva = document.getElementById('swalIvaAll').value;
+                const desc = document.getElementById('swalDescAll').value;
+                if (iva === '' || desc === '') {
+                    Swal.showValidationMessage('Debe completar ambos campos');
+                    return false;
+                }
+                return { iva_porc: parseFloat(iva), desc_porc: parseFloat(desc) }
+            }
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                Swal.fire({
+                    title: '¿Está seguro?',
+                    text: 'Se sobrescribirán los porcentajes de TODOS los artículos.',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#198754',
+                    cancelButtonColor: '#aaa',
+                    confirmButtonText: 'Sí, aplicar a todos',
+                    cancelButtonText: 'Cancelar'
+                }).then((confirm) => {
+                    if (confirm.isConfirmed) {
+                        fetch('{{ route("movimientos.updateAllIvaDescuento", $movimiento->id_movimiento) }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            body: JSON.stringify(result.value)
+                        })
+                        .then(resp => resp.json())
+                        .then(r => {
+                            if (r.success) {
+                                location.reload();
+                            } else {
+                                Swal.fire('Error', r.mensaje, 'error');
+                            }
+                        })
+                        .catch(err => {
+                            Swal.fire('Error', 'Hubo un error al actualizar todos los artículos.', 'error');
+                        });
+                    }
                 });
             }
         });

@@ -14,4 +14,9 @@ class Proyecto extends Model
         'estado',
         'fecha_registro'
     ];
+
+    public function obras()
+    {
+        return $this->hasMany(Obra::class, 'id_proyecto');
+    }
 }

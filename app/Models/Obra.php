@@ -10,8 +10,14 @@ class Obra extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        'id_proyecto',
         'nombre',
         'estado',
         'fecha_registro'
     ];
+
+    public function proyecto()
+    {
+        return $this->belongsTo(Proyecto::class, 'id_proyecto');
+    }
 }

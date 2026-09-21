@@ -83,6 +83,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/movimientos/{id}/detalle', [App\Http\Controllers\MovimientoController::class, 'storeDetail'])->name('movimientos.storeDetail');
     Route::post('/movimientos/{id_mov}/detalle/{id_detail}/delete', [App\Http\Controllers\MovimientoController::class, 'deleteDetail'])->name('movimientos.deleteDetail');
     Route::post('/movimientos/{id_mov}/detalle/{id_detail}/update-cantidad', [App\Http\Controllers\MovimientoController::class, 'updateDetailCantidad'])->name('movimientos.updateDetailCantidad');
+    Route::post('/movimientos/{id_mov}/detalle/{id_detail}/update-iva-descuento', [App\Http\Controllers\MovimientoController::class, 'updateDetailIvaDescuento'])->name('movimientos.updateDetailIvaDescuento');
+    Route::post('/movimientos/{id}/update-all-iva-descuento', [App\Http\Controllers\MovimientoController::class, 'updateAllIvaDescuento'])->name('movimientos.updateAllIvaDescuento');
     Route::post('/movimientos/{id}/confirmar', [App\Http\Controllers\MovimientoController::class, 'guardarDefinitivo'])->name('movimientos.guardarDefinitivo');
     Route::post('/movimientos/{id}/delete', [App\Http\Controllers\MovimientoController::class, 'destroy'])->name('movimientos.delete');
     Route::post('/movimientos/{id}/update-iva-descuento', [App\Http\Controllers\MovimientoController::class, 'updateIvaDescuento'])->name('movimientos.updateIvaDescuento');
@@ -118,6 +120,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/ordenes/{id}/update', [App\Http\Controllers\OrdenTrabajoController::class, 'update'])->name('ordenes.update');
     Route::post('/ordenes/{id}/delete', [App\Http\Controllers\OrdenTrabajoController::class, 'destroy'])->name('ordenes.delete');
     Route::post('/ordenes/{id}/restore', [App\Http\Controllers\OrdenTrabajoController::class, 'restore'])->name('ordenes.restore');
+    Route::get('/ordenes/obras/{id_proyecto}', [App\Http\Controllers\OrdenTrabajoController::class, 'getObrasByProyecto'])->name('ordenes.obrasByProyecto');
 
     // Rutas de Pedidos de Materiales
     Route::get('/pedidos', [App\Http\Controllers\PedidoMaterialController::class, 'index'])->name('pedidos.index');

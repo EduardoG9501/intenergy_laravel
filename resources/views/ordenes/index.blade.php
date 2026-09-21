@@ -64,7 +64,7 @@
                                 <button type="button" class="btn btn-sm btn-warning dropdown-toggle fw-semibold" data-bs-toggle="dropdown" aria-expanded="false">
                                     <i class="fa-solid fa-tasks me-1"></i> ACCIONES
                                 </button>
-                                <ul class="dropdown-menu">
+                                <ul class="dropdown-menu dropdown-menu-end">
                                     <li>
                                         <a class="dropdown-item" href="{{ route('pedidos.index') }}?orden={{ $o->id_orden }}">
                                             <i class="fa-solid fa-box-open me-2 text-info"></i> Pedido de Materiales
@@ -132,7 +132,7 @@
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">PROYECTO: *</label>
-                            <select class="form-select" name="id_proyecto" required>
+                            <select class="form-select" name="id_proyecto" id="add_id_proyecto" required onchange="cargarObrasAdd(this.value)">
                                 <option value="" selected disabled>Selecciona Proyecto</option>
                                 @foreach($proyectos as $p)
                                     <option value="{{ $p->id }}">{{ $p->id }} - {{ $p->nombre }}</option>
@@ -142,11 +142,8 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">NOMBRE DE OBRA: *</label>
-                            <select class="form-select" name="id_obra" required>
-                                <option value="" selected disabled>Selecciona Nombre de Obra</option>
-                                @foreach($obras as $ob)
-                                    <option value="{{ $ob->id }}">{{ $ob->id }} - {{ $ob->nombre }}</option>
-                                @endforeach
+                            <select class="form-select" name="id_obra" id="add_id_obra" required>
+                                <option value="" selected disabled>Selecciona una obra</option>
                             </select>
                         </div>
                         <div class="col-md-6">
@@ -157,9 +154,9 @@
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">LUGAR: *</label>
                             <select class="form-select" name="id_bodega_principal" id="add_id_bodega_principal" required>
-                                <option value="" selected disabled>Selecciona Lugar</option>
+                                <option value="" disabled>Selecciona Lugar</option>
                                 @foreach($bodegasPrincipales as $bp)
-                                    <option value="{{ $bp->id_bodega }}">{{ $bp->nombreBodega }}</option>
+                                    <option value="{{ $bp->id_bodega }}" @if(session('bodega_seleccionada') == $bp->id_bodega) selected @endif>{{ $bp->nombreBodega }}</option>
                                 @endforeach
                             </select>
                             <input type="hidden" name="id_bodega_secundaria" id="add_id_bodega_secundaria" value="">
@@ -196,7 +193,7 @@
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">PROYECTO: *</label>
-                            <select class="form-select" name="id_proyecto" id="edit_id_proyecto" required>
+                            <select class="form-select" name="id_proyecto" id="edit_id_proyecto" required onchange="cargarObrasEdit(this.value)">
                                 <option value="" disabled>Selecciona Proyecto</option>
                                 @foreach($proyectos as $p)
                                     <option value="{{ $p->id }}">{{ $p->id }} - {{ $p->nombre }}</option>
@@ -207,9 +204,6 @@
                             <label class="form-label fw-semibold">NOMBRE DE OBRA: *</label>
                             <select class="form-select" name="id_obra" id="edit_id_obra" required>
                                 <option value="" disabled>Selecciona Nombre de Obra</option>
-                                @foreach($obras as $ob)
-                                    <option value="{{ $ob->id }}">{{ $ob->id }} - {{ $ob->nombre }}</option>
-                                @endforeach
                             </select>
                         </div>
                         <div class="col-md-6">
@@ -259,6 +253,58 @@
 
 @section('scripts')
 <script>
+    // Cargar obras por proyecto (Modal Agregar)
+    function cargarObrasAdd(idProyecto) {
+        const obraSelect = document.getElementById('add_id_obra');
+        obraSelect.innerHTML = '<option value="" selected disabled>Cargando obras...</option>';
+        obraSelect.disabled = true;
+
+        if (!idProyecto) return;
+
+        fetch(`/ordenes/obras/${idProyecto}`)
+            .then(resp => resp.json())
+            .then(r => {
+                if (r.success) {
+                    obraSelect.innerHTML = '<option value="" selected disabled>Selecciona una obra</option>';
+                    r.obras.forEach(o => {
+                        obraSelect.innerHTML += `<option value="${o.id}">${o.id} - ${o.nombre}</option>`;
+                    });
+                    obraSelect.disabled = false;
+                } else {
+                    obraSelect.innerHTML = '<option value="" selected disabled>Error al cargar obras</option>';
+                }
+            })
+            .catch(() => {
+                obraSelect.innerHTML = '<option value="" selected disabled>Error de red</option>';
+            });
+    }
+
+    // Cargar obras por proyecto (Modal Editar)
+    function cargarObrasEdit(idProyecto) {
+        const obraSelect = document.getElementById('edit_id_obra');
+        obraSelect.innerHTML = '<option value="" selected disabled>Cargando obras...</option>';
+        obraSelect.disabled = true;
+
+        if (!idProyecto) return;
+
+        fetch(`/ordenes/obras/${idProyecto}`)
+            .then(resp => resp.json())
+            .then(r => {
+                if (r.success) {
+                    obraSelect.innerHTML = '<option value="" disabled>Selecciona Nombre de Obra</option>';
+                    r.obras.forEach(o => {
+                        obraSelect.innerHTML += `<option value="${o.id}">${o.id} - ${o.nombre}</option>`;
+                    });
+                    obraSelect.disabled = false;
+                } else {
+                    obraSelect.innerHTML = '<option value="" selected disabled>Error al cargar obras</option>';
+                }
+            })
+            .catch(() => {
+                obraSelect.innerHTML = '<option value="" selected disabled>Error de red</option>';
+            });
+    }
+
     // Guardar
     document.getElementById('formAdd').addEventListener('submit', function(e) {
         e.preventDefault();
@@ -279,7 +325,7 @@
         });
     });
 
-    // Cargar datos
+    // Cargar datos para editar
     function editOrden(id) {
         fetch(`/ordenes/${id}`)
         .then(resp => resp.json())
@@ -289,13 +335,17 @@
                 document.getElementById('edit_identificador').value = r.orden.identificador;
                 document.getElementById('edit_costo').value = r.orden.costo;
                 document.getElementById('edit_id_proyecto').value = r.orden.id_proyecto;
-                document.getElementById('edit_id_obra').value = r.orden.id_obra;
                 document.getElementById('edit_fecha_inicial').value = r.orden.fecha_inicial;
                 document.getElementById('edit_fecha_final').value = r.orden.fecha_final;
                 document.getElementById('edit_id_bodega_principal').value = r.orden.id_bodega_principal;
                 document.getElementById('edit_id_bodega_secundaria').value = r.orden.id_bodega_secundaria || '';
                 document.getElementById('edit_id_estado_orden').value = r.orden.id_estado_orden;
                 document.getElementById('edit_observacion').value = r.orden.observacion || '';
+
+                // Cargar obras del proyecto y seleccionar la obra correcta
+                cargarObrasEdit(r.orden.id_proyecto).then(() => {
+                    document.getElementById('edit_id_obra').value = r.orden.id_obra;
+                });
 
                 const modal = new bootstrap.Modal(document.getElementById('modalEdit'));
                 modal.show();

@@ -191,4 +191,13 @@ class OrdenTrabajoController extends Controller
             return response()->json(['success' => false, 'mensaje' => 'Error al restaurar: ' . $e->getMessage()]);
         }
     }
+
+    public function getObrasByProyecto($id_proyecto)
+    {
+        $obras = Obra::where('id_proyecto', $id_proyecto)
+                     ->where('estado', 1)
+                     ->get(['id', 'nombre']);
+
+        return response()->json(['success' => true, 'obras' => $obras]);
+    }
 }

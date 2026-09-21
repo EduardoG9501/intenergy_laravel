@@ -13,6 +13,14 @@
             </ol>
         </nav>
     </div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-sm btn-success fw-semibold" id="exportExcel">
+            <i class="fa-solid fa-file-excel me-1"></i> Excel
+        </button>
+        <button type="button" class="btn btn-sm btn-danger fw-semibold" id="exportPDF">
+            <i class="fa-solid fa-file-pdf me-1"></i> PDF
+        </button>
+    </div>
 </div>
 
 <!-- Filtros de Búsqueda -->
@@ -45,7 +53,7 @@
 <!-- Listado de Existencias -->
 <div class="card card-custom p-0 overflow-hidden">
     <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+        <table class="table table-hover align-middle mb-0" id="tablaStock">
             <thead class="table-dark">
                 <tr>
                     <th class="ps-4">Código de Barra</th>
@@ -95,4 +103,101 @@
         </div>
     @endif
 </div>
+@endsection
+
+@section('scripts')
+<!-- ExcelJS y FileSaver -->
+<script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<!-- jsPDF y AutoTable -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.7.0/jspdf.plugin.autotable.min.js"></script>
+
+<script>
+    // Export Excel
+    document.getElementById('exportExcel')?.addEventListener('click', function() {
+        var table = document.getElementById('tablaStock');
+        var headers = Array.from(table.querySelectorAll('thead tr th')).map(cell => cell.innerText);
+
+        var bodyRows = [];
+        Array.from(table.querySelectorAll('tbody tr')).forEach(row => {
+            var cols = Array.from(row.cells).map(cell => cell.innerText.trim());
+            if (cols.length > 1) bodyRows.push(cols);
+        });
+
+        if (bodyRows.length === 0) {
+            Swal.fire('Atención', 'No hay datos de stock para exportar.', 'warning');
+            return;
+        }
+
+        var workbook = new ExcelJS.Workbook();
+        var worksheet = workbook.addWorksheet('Stock');
+
+        worksheet.columns = [
+            { header: 'Código de Barra', key: 'barcode', width: 20 },
+            { header: 'Producto', key: 'producto', width: 40 },
+            { header: 'Bodega Principal', key: 'bodega', width: 25 },
+            { header: 'Bodega Destino', key: 'destino', width: 25 },
+            { header: 'Cantidad', key: 'cantidad', width: 15 }
+        ];
+
+        let headerRow = worksheet.getRow(1);
+        headerRow.eachCell(cell => {
+            cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FF0B1A30" } };
+            cell.alignment = { horizontal: "center", vertical: "middle" };
+        });
+
+        bodyRows.forEach(row => {
+            worksheet.addRow({
+                barcode: row[0],
+                producto: row[1],
+                bodega: row[2],
+                destino: row[3],
+                cantidad: row[4]
+            });
+        });
+
+        workbook.xlsx.writeBuffer().then(function(buffer) {
+            saveAs(new Blob([buffer], { type: "application/octet-stream" }), "Stock_Productos.xlsx");
+        });
+    });
+
+    // Export PDF
+    document.getElementById('exportPDF')?.addEventListener('click', function() {
+        var table = document.getElementById('tablaStock');
+        var headers = Array.from(table.querySelectorAll('thead tr th')).map(cell => cell.innerText);
+
+        var bodyRows = [];
+        Array.from(table.querySelectorAll('tbody tr')).forEach(row => {
+            var cols = Array.from(row.cells).map(cell => cell.innerText.trim());
+            if (cols.length > 1) bodyRows.push(cols);
+        });
+
+        if (bodyRows.length === 0) {
+            Swal.fire('Atención', 'No hay datos de stock para exportar.', 'warning');
+            return;
+        }
+
+        const doc = new window.jspdf.jsPDF('l', 'mm', 'a4');
+        doc.setFontSize(16);
+        doc.setTextColor(11, 26, 48);
+        doc.text("Reporte de Stock - Intenergy", 14, 20);
+
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text("Fecha: {{ date('d/m/Y H:i') }} | Registros: " + bodyRows.length, 14, 30);
+
+        doc.autoTable({
+            head: [headers],
+            body: bodyRows,
+            startY: 36,
+            headStyles: { fillColor: [11, 26, 48] },
+            alternateRowStyles: { fillColor: [245, 247, 251] },
+            styles: { fontSize: 9 }
+        });
+
+        doc.save("Stock_Productos.pdf");
+    });
+</script>
 @endsection

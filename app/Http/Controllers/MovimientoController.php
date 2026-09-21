@@ -241,29 +241,58 @@ class MovimientoController extends Controller
                 $ivaArticulo = $request->filled('iva_porc') ? floatval($request->iva_porc) : $mov->iva_porc;
                 $descArticulo = $request->filled('desc_porc') ? floatval($request->desc_porc) : $mov->desc_porc;
 
-                $porcIva = $ivaArticulo / 100;
-                $porcDesc = $descArticulo / 100;
+                // Validar si ya existe una línea con el mismo producto y mismo lote
+                $loteNormalizado = trim($request->lote);
+                $existente = MovimientoDetalleTmp::where('id_movimiento', $mov->id_movimiento)
+                    ->where('id_articulo', $request->id_articulo)
+                    ->where('lote', $loteNormalizado)
+                    ->first();
 
-                $subtotal = $request->cantidad * $request->precio;
-                $descuento = round($subtotal * $porcDesc, 4);
-                $iva = round(($subtotal - $descuento) * $porcIva, 4);
-                $total = round(($subtotal - $descuento) + $iva, 4);
+                if ($existente) {
+                    // Sumar la cantidad a la línea existente y recalcular
+                    $nuevaCantidad = $existente->cantidad + $request->cantidad;
 
-                MovimientoDetalleTmp::create([
-                    'id_movimiento' => $mov->id_movimiento,
-                    'id_articulo' => $request->id_articulo,
-                    'id_bodega_lugar' => $request->id_bodega_lugar,
-                    'precio' => $request->precio,
-                    'cantidad' => $request->cantidad,
-                    'lote' => trim($request->lote),
-                    'bonificacion' => 0,
-                    'subtotal' => $subtotal,
-                    'decuento' => $descuento,
-                    'iva' => $iva,
-                    'total' => $total,
-                    'iva_porc' => $ivaArticulo,
-                    'desc_porc' => $descArticulo
-                ]);
+                    $porcIva = $existente->iva_porc / 100;
+                    $porcDesc = $existente->desc_porc / 100;
+
+                    $subtotal = $nuevaCantidad * $existente->precio;
+                    $descuento = round($subtotal * $porcDesc, 4);
+                    $iva = round(($subtotal - $descuento) * $porcIva, 4);
+                    $total = round(($subtotal - $descuento) + $iva, 4);
+
+                    $existente->update([
+                        'cantidad' => $nuevaCantidad,
+                        'subtotal' => $subtotal,
+                        'decuento' => $descuento,
+                        'iva' => $iva,
+                        'total' => $total
+                    ]);
+                } else {
+                    // Crear nueva línea
+                    $porcIva = $ivaArticulo / 100;
+                    $porcDesc = $descArticulo / 100;
+
+                    $subtotal = $request->cantidad * $request->precio;
+                    $descuento = round($subtotal * $porcDesc, 4);
+                    $iva = round(($subtotal - $descuento) * $porcIva, 4);
+                    $total = round(($subtotal - $descuento) + $iva, 4);
+
+                    MovimientoDetalleTmp::create([
+                        'id_movimiento' => $mov->id_movimiento,
+                        'id_articulo' => $request->id_articulo,
+                        'id_bodega_lugar' => $request->id_bodega_lugar,
+                        'precio' => $request->precio,
+                        'cantidad' => $request->cantidad,
+                        'lote' => $loteNormalizado,
+                        'bonificacion' => 0,
+                        'subtotal' => $subtotal,
+                        'decuento' => $descuento,
+                        'iva' => $iva,
+                        'total' => $total,
+                        'iva_porc' => $ivaArticulo,
+                        'desc_porc' => $descArticulo
+                    ]);
+                }
 
                 $this->recalcularCabecera($mov);
             });
@@ -347,6 +376,99 @@ class MovimientoController extends Controller
             return response()->json(['success' => true, 'mensaje' => 'Cantidad actualizada correctamente.']);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'mensaje' => 'Error al actualizar cantidad: ' . $e->getMessage()]);
+        }
+    }
+
+    public function updateDetailIvaDescuento(Request $request, $id_mov, $id_detail)
+    {
+        $mov = Movimiento::findOrFail($id_mov);
+        if ($mov->guardarDefinitivo == 1) {
+            return response()->json(['success' => false, 'mensaje' => 'Este movimiento es definitivo y no se puede modificar.']);
+        }
+
+        $request->validate([
+            'iva_porc' => 'required|numeric|min:0|max:100',
+            'desc_porc' => 'required|numeric|min:0|max:100',
+        ]);
+
+        try {
+            DB::transaction(function() use ($request, $id_detail, $mov) {
+                $detail = MovimientoDetalleTmp::where('id_movimientos_detalle_tmp', $id_detail)
+                                              ->where('id_movimiento', $mov->id_movimiento)
+                                              ->firstOrFail();
+
+                $porcIva = $request->iva_porc / 100;
+                $porcDesc = $request->desc_porc / 100;
+
+                $subtotal = $detail->cantidad * $detail->precio;
+                $descuento = round($subtotal * $porcDesc, 4);
+                $iva = round(($subtotal - $descuento) * $porcIva, 4);
+                $total = round(($subtotal - $descuento) + $iva, 4);
+
+                $detail->update([
+                    'iva_porc' => $request->iva_porc,
+                    'desc_porc' => $request->desc_porc,
+                    'subtotal' => $subtotal,
+                    'decuento' => $descuento,
+                    'iva' => $iva,
+                    'total' => $total
+                ]);
+
+                $this->recalcularCabecera($mov);
+            });
+
+            return response()->json(['success' => true, 'mensaje' => 'IVA y Descuento actualizados correctamente.']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'mensaje' => 'Error al actualizar IVA/Descuento: ' . $e->getMessage()]);
+        }
+    }
+
+    public function updateAllIvaDescuento(Request $request, $id)
+    {
+        $mov = Movimiento::findOrFail($id);
+        if ($mov->guardarDefinitivo == 1) {
+            return response()->json(['success' => false, 'mensaje' => 'Este movimiento es definitivo y no se puede modificar.']);
+        }
+
+        $request->validate([
+            'iva_porc' => 'required|numeric|min:0|max:100',
+            'desc_porc' => 'required|numeric|min:0|max:100',
+        ]);
+
+        try {
+            DB::transaction(function() use ($request, $mov) {
+                // Actualizar cabecera
+                $mov->iva_porc = $request->iva_porc;
+                $mov->desc_porc = $request->desc_porc;
+                $mov->save();
+
+                // Actualizar TODOS los detalles con los nuevos porcentajes y recalcular
+                $detalles = MovimientoDetalleTmp::where('id_movimiento', $mov->id_movimiento)->get();
+                foreach ($detalles as $det) {
+                    $porcIva = $request->iva_porc / 100;
+                    $porcDesc = $request->desc_porc / 100;
+
+                    $subtotal = $det->cantidad * $det->precio;
+                    $descuento = round($subtotal * $porcDesc, 4);
+                    $iva = round(($subtotal - $descuento) * $porcIva, 4);
+                    $total = round(($subtotal - $descuento) + $iva, 4);
+
+                    $det->update([
+                        'iva_porc' => $request->iva_porc,
+                        'desc_porc' => $request->desc_porc,
+                        'subtotal' => $subtotal,
+                        'decuento' => $descuento,
+                        'iva' => $iva,
+                        'total' => $total
+                    ]);
+                }
+
+                $this->recalcularCabecera($mov);
+            });
+
+            return response()->json(['success' => true, 'mensaje' => 'IVA y Descuento actualizados en todos los artículos.']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'mensaje' => 'Error al actualizar todos: ' . $e->getMessage()]);
         }
     }
 
