@@ -467,27 +467,74 @@ class ReporteController extends Controller
     {
         $resultados = $this->getOrdenesTrabajoQuery($request);
 
+        // Obtener nombres de los filtros aplicados
+        $proyectoNombre = 'Todos';
+        if ($request->filled('proyecto')) {
+            $p = DB::table('proyecto')->where('id', $request->proyecto)->first();
+            $proyectoNombre = $p ? $p->nombre : 'Todos';
+        }
+
+        $obraNombre = 'Todas';
+        if ($request->filled('obra')) {
+            $o = DB::table('obra')->where('id', $request->obra)->first();
+            $obraNombre = $o ? $o->nombre : 'Todas';
+        }
+
+        $estadoNombre = 'Todos';
+        if ($request->filled('estado')) {
+            $e = DB::table('estado_ordenes')->where('id_estado_orden', $request->estado)->first();
+            $estadoNombre = $e ? $e->estado : 'Todos';
+        }
+
+        $fechaDesde = $request->filled('fecha_desde') ? date('Y-m-d', strtotime($request->fecha_desde)) : date('Y-m-01');
+        $fechaHasta = $request->filled('fecha_hasta') ? date('Y-m-d', strtotime($request->fecha_hasta)) : date('Y-m-d');
+
+        $logoSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+            <polygon points="30,2 12,28 22,28 18,48 38,20 28,20" fill="#28a745"/>
+            <text x="25" y="48" text-anchor="middle" font-size="8" font-weight="bold" fill="#1a1a2e">INTENERGY</text>
+        </svg>';
+
         $html = '<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
-<title>Informe de Ordenes de Trabajo</title>
+<title>Reporte de Ordenes de Trabajo</title>
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: Arial, sans-serif; font-size: 11px; color: #333; padding: 20px; }
-    h2 { text-align: center; margin-bottom: 4px; font-size: 16px; }
-    .info { text-align: center; color: #666; margin-bottom: 15px; font-size: 10px; }
+    .header { display: flex; align-items: flex-start; gap: 15px; margin-bottom: 10px; }
+    .header-logo { flex-shrink: 0; }
+    .header-text { flex-grow: 1; }
+    .header-text h1 { font-size: 20px; font-weight: bold; color: #1a1a2e; margin-bottom: 4px; }
+    .header-text .subtitle { font-size: 11px; color: #666; }
+    .filters { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; padding: 10px 15px; margin-bottom: 15px; }
+    .filters h3 { font-size: 12px; font-weight: bold; color: #1a1a2e; margin-bottom: 6px; text-decoration: underline; }
+    .filters p { font-size: 10px; color: #444; margin: 2px 0; }
+    .filters strong { color: #1a1a2e; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th { background: #2c3e50; color: white; padding: 7px 5px; text-align: left; font-size: 10px; }
-    td { padding: 6px 5px; border-bottom: 1px solid #ddd; font-size: 10px; }
-    tr:nth-child(even) { background: #f5f5f5; }
-    .badge-success { background: #28a745; color: white; padding: 2px 8px; border-radius: 3px; font-size: 9px; }
-    .badge-warning { background: #ffc107; color: #333; padding: 2px 8px; border-radius: 3px; font-size: 9px; }
-    .badge-secondary { background: #6c757d; color: white; padding: 2px 8px; border-radius: 3px; font-size: 9px; }
+    th { background: #0d6efd; color: white; padding: 8px 6px; text-align: left; font-size: 10px; font-weight: bold; }
+    td { padding: 6px; border-bottom: 1px solid #dee2e6; font-size: 10px; }
+    tr:nth-child(even) { background: #f8f9fa; }
+    .badge-success { background: #28a745; color: white; padding: 3px 10px; border-radius: 3px; font-size: 9px; font-weight: bold; }
+    .badge-warning { background: #ffc107; color: #333; padding: 3px 10px; border-radius: 3px; font-size: 9px; font-weight: bold; }
+    .badge-secondary { background: #6c757d; color: white; padding: 3px 10px; border-radius: 3px; font-size: 9px; font-weight: bold; }
+    .footer { margin-top: 20px; text-align: center; font-size: 9px; color: #999; border-top: 1px solid #eee; padding-top: 10px; }
     @media print { body { padding: 10px; } }
 </style></head><body>
-<h2>Informe de Ordenes de Trabajo</h2>
-<div class="info">Generado: ' . date('d/m/Y H:i') . ' | Total: ' . $resultados->count() . ' registro(s)</div>
+<div class="header">
+    <div class="header-logo">' . $logoSvg . '</div>
+    <div class="header-text">
+        <h1>Reporte de Ordenes de Trabajo</h1>
+        <div class="subtitle">DESDE: ' . date('d/m/Y', strtotime($fechaDesde)) . ' HASTA: ' . date('d/m/Y', strtotime($fechaHasta)) . '</div>
+    </div>
+</div>
+<div class="filters">
+    <h3>Filtros aplicados:</h3>
+    <p><strong>Lugar:</strong> Todos</p>
+    <p><strong>Estado:</strong> ' . $estadoNombre . '</p>
+    <p><strong>Proyecto:</strong> ' . $proyectoNombre . '</p>
+    <p><strong>Nombre de la Obra:</strong> ' . $obraNombre . '</p>
+</div>
 <table>
-<thead><tr><th>ID</th><th>Identificador</th><th>Proyecto</th><th>Obra</th><th>Fecha</th><th>Lugar</th><th>Observación</th><th>Estado</th></tr></thead>
+<thead><tr><th>ID ORDEN</th><th>IDENTIFICADOR</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>OBSERVACION</th><th>ESTADO</th></tr></thead>
 <tbody>';
 
         foreach ($resultados as $row) {
@@ -509,6 +556,7 @@ class ReporteController extends Controller
         }
 
         $html .= '</tbody></table>
+<div class="footer">Generado: ' . date('d/m/Y H:i') . ' | Total: ' . $resultados->count() . ' registro(s) | INTENERGY</div>
 <script>window.onload = function() { window.print(); }</script>
 </body></html>';
 
@@ -625,9 +673,14 @@ class ReporteController extends Controller
     {
         $resultados = $this->getPedidoMaterialesQuery($request);
 
+        $filename = 'pedido_materiales_' . date('Y-m-d') . '.csv';
+
         $headers = [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="pedido_materiales_' . date('Y-m-d') . '.csv"',
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
         ];
 
         $callback = function() use ($resultados) {
@@ -659,39 +712,104 @@ class ReporteController extends Controller
     {
         $resultados = $this->getPedidoMaterialesQuery($request);
 
+        // Obtener info de filtros
+        $identificador = 'Todas';
+        $proyecto = '';
+        $obra = '';
+        if ($request->filled('id_orden')) {
+            $ot = DB::table('ordenes_trabajo as ot')
+                ->leftJoin('proyecto as p', 'ot.id_proyecto', '=', 'p.id')
+                ->leftJoin('obra as o', 'ot.id_obra', '=', 'o.id')
+                ->select('ot.identificador', 'p.nombre as proyecto', 'o.nombre as obra')
+                ->where('ot.id_orden', $request->id_orden)
+                ->first();
+            if ($ot) {
+                $identificador = $ot->identificador;
+                $proyecto = $ot->proyecto ?? '';
+                $obra = $ot->obra ?? '';
+            }
+        }
+
+        // Agrupar artículos
+        $agrupados = [];
+        $totales = [];
+        $granTotal = 0;
+        foreach ($resultados as $row) {
+            $articulo = $row->articulo ?: 'Sin artículo';
+            if (!isset($agrupados[$articulo])) {
+                $agrupados[$articulo] = [];
+                $totales[$articulo] = 0;
+            }
+            $agrupados[$articulo][] = $row;
+            $totales[$articulo] += $row->cantidad;
+            $granTotal += $row->cantidad;
+        }
+
+        $logoSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+            <polygon points="30,2 12,28 22,28 18,48 38,20 28,20" fill="#28a745"/>
+            <text x="25" y="48" text-anchor="middle" font-size="8" font-weight="bold" fill="#1a1a2e">INTENERGY</text>
+        </svg>';
+
         $html = '<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
-<title>Informe de Pedido de Materiales</title>
+<title>Reporte de Pedido de Materiales</title>
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: Arial, sans-serif; font-size: 11px; color: #333; padding: 20px; }
-    h2 { text-align: center; margin-bottom: 4px; font-size: 16px; }
-    .info { text-align: center; color: #666; margin-bottom: 15px; font-size: 10px; }
+    .header { display: flex; align-items: flex-start; gap: 15px; margin-bottom: 15px; }
+    .header-logo { flex-shrink: 0; }
+    .header-text h1 { font-size: 20px; font-weight: bold; color: #1a1a2e; margin-bottom: 4px; }
+    .filters { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; padding: 10px 15px; margin-bottom: 15px; }
+    .filters p { font-size: 11px; color: #444; margin: 2px 0; }
+    .filters strong { color: #1a1a2e; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th { background: #2c3e50; color: white; padding: 7px 5px; text-align: left; font-size: 10px; }
-    td { padding: 6px 5px; border-bottom: 1px solid #ddd; font-size: 10px; }
-    tr:nth-child(even) { background: #f5f5f5; }
+    th { background: #0d6efd; color: white; padding: 8px 6px; text-align: left; font-size: 10px; font-weight: bold; }
+    td { padding: 6px; border-bottom: 1px solid #dee2e6; font-size: 10px; }
+    tr:nth-child(even) { background: #f8f9fa; }
+    .row-total { background: #e8f4fd !important; font-weight: bold; }
+    .row-total td { border-top: 2px solid #0d6efd; padding: 5px 6px; font-size: 10px; }
+    .row-grand-total { background: #0d6efd !important; color: white; font-weight: bold; }
+    .row-grand-total td { padding: 8px 6px; font-size: 11px; }
+    .footer { margin-top: 20px; text-align: center; font-size: 9px; color: #999; border-top: 1px solid #eee; padding-top: 10px; }
     @media print { body { padding: 10px; } }
 </style></head><body>
-<h2>Informe de Pedido de Materiales</h2>
-<div class="info">Generado: ' . date('d/m/Y H:i') . ' | Total: ' . $resultados->count() . ' registro(s)</div>
+<div class="header">
+    <div class="header-logo">' . $logoSvg . '</div>
+    <div class="header-text">
+        <h1>REPORTE DE PEDIDOS DE MATERIALES</h1>
+    </div>
+</div>
+<div class="filters">
+    <p><strong>PROYECTO:</strong> ' . ($proyecto ?: 'Todos') . '</p>
+    <p><strong>OBRA:</strong> ' . ($obra ?: 'Todas') . '</p>
+    <p><strong>ID ORDEN:</strong> ' . $identificador . '</p>
+</div>
 <table>
-<thead><tr><th>Id Orden</th><th>Proyecto</th><th>Nombre De La Obra</th><th>Fecha</th><th>Lugar</th><th>Artículo</th><th>Cantidad</th></tr></thead>
+<thead><tr><th>FECHA</th><th>LUGAR</th><th>ARTICULO</th><th style="text-align:right;">CANTIDAD</th></tr></thead>
 <tbody>';
 
-        foreach ($resultados as $row) {
-            $html .= '<tr>
-                <td>' . $row->id_orden . ' <small>(' . $row->identificador . ')</small></td>
-                <td>' . $row->proyecto . '</td>
-                <td>' . $row->obra . '</td>
-                <td>' . ($row->fecha ? date('d/m/Y', strtotime($row->fecha)) : '-') . '</td>
-                <td>' . ($row->lugar ?: '-') . '</td>
-                <td>' . ($row->articulo ?: '-') . '</td>
-                <td><strong>' . number_format($row->cantidad, 2) . '</strong></td>
+        foreach ($agrupados as $articulo => $items) {
+            foreach ($items as $row) {
+                $html .= '<tr>
+                    <td>' . ($row->fecha ? date('d/m/Y', strtotime($row->fecha)) : '-') . '</td>
+                    <td>' . ($row->lugar ?: '-') . '</td>
+                    <td>' . $row->articulo . '</td>
+                    <td style="text-align:right;">' . number_format($row->cantidad, 2) . '</td>
+                </tr>';
+            }
+            $html .= '<tr class="row-total">
+                <td colspan="3" style="text-align:right;">TOTALES ' . strtoupper($articulo) . ':</td>
+                <td style="text-align:right;">' . number_format($totales[$articulo], 2) . '</td>
             </tr>';
         }
 
+        $html .= '<tr class="row-grand-total">
+            <td colspan="3" style="text-align:right;">TOTALES GENERALES:</td>
+            <td style="text-align:right;">' . number_format($granTotal, 2) . '</td>
+        </tr>';
+
         $html .= '</tbody></table>
+<div class="footer">Generado: ' . date('d/m/Y H:i') . ' | Total: ' . $resultados->count() . ' registro(s) | INTENERGY</div>
 <script>window.onload = function() { window.print(); }</script>
 </body></html>';
 
