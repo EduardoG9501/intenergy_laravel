@@ -514,11 +514,15 @@ class ReporteController extends Controller
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #1e293b; padding: 25px 30px; }
+    .no-print { position: fixed; top: 18px; right: 18px; z-index: 100; }
+    .btn-print { display: inline-flex; align-items: center; gap: 8px; background: #0d6efd; color: #fff; border: none; padding: 10px 22px; font-size: 14px; font-weight: 600; border-radius: 6px; cursor: pointer; box-shadow: 0 3px 10px rgba(13,110,253,0.35); }
+    .btn-print:hover { background: #0b5ed7; }
+    .btn-print svg { width: 18px; height: 18px; fill: #fff; }
     .header { display: flex; align-items: flex-start; gap: 30px; margin-bottom: 18px; }
     .header-logo { flex-shrink: 0; }
-    .header-text { flex-grow: 1; padding-top: 4px; }
-    .header-text h1 { font-size: 32px; font-weight: bold; color: #0f172a; margin-bottom: 8px; letter-spacing: 0.3px; }
-    .header-text .dates { font-size: 18px; color: #334155; font-weight: 400; }
+    .header-text { flex-grow: 1; padding-top: 4px; text-align: center; }
+    .header-text h1 { font-size: 32px; font-weight: bold; color: #0f172a; margin-bottom: 8px; letter-spacing: 0.3px; text-align: center; }
+    .header-text .dates { font-size: 18px; color: #334155; font-weight: 400; text-align: center; }
     .filters { margin-bottom: 20px; line-height: 1.7; }
     .filters .filters-title { font-size: 14px; font-weight: bold; color: #0f172a; text-decoration: underline; margin-bottom: 4px; display: inline-block; }
     .filters p { font-size: 13.5px; color: #1e293b; margin: 2px 0; }
@@ -532,8 +536,17 @@ class ReporteController extends Controller
     .badge-grabado { background: #22c55e; }
     .badge-pendiente { background: #eab308; color: #1e293b; }
     .badge-otro { background: #94a3b8; }
-    @media print { body { padding: 12px; } }
+    @media print {
+        body { padding: 12px; }
+        .no-print { display: none !important; }
+    }
 </style></head><body>
+<div class="no-print">
+    <button type="button" class="btn-print" onclick="window.print()">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>
+        Imprimir
+    </button>
+</div>
 <div class="header">
     <div class="header-logo">' . $logoSvg . '</div>
     <div class="header-text">
@@ -574,7 +587,6 @@ class ReporteController extends Controller
         }
 
         $html .= '</tbody></table>
-<script>window.onload = function() { window.print(); }</script>
 </body></html>';
 
         return response($html)->header('Content-Type', 'text/html');
@@ -775,9 +787,14 @@ class ReporteController extends Controller
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: #0f172a; padding: 25px 30px; }
+    .no-print { position: fixed; top: 18px; right: 18px; z-index: 100; }
+    .btn-print { display: inline-flex; align-items: center; gap: 8px; background: #0d6efd; color: #fff; border: none; padding: 10px 22px; font-size: 14px; font-weight: 600; border-radius: 6px; cursor: pointer; box-shadow: 0 3px 10px rgba(13,110,253,0.35); }
+    .btn-print:hover { background: #0b5ed7; }
+    .btn-print svg { width: 18px; height: 18px; fill: #fff; }
     .header { display: flex; align-items: center; gap: 30px; margin-bottom: 25px; }
     .header-logo { flex-shrink: 0; }
-    .header-text h1 { font-size: 30px; font-weight: bold; color: #0f172a; letter-spacing: 0.3px; }
+    .header-text { flex-grow: 1; text-align: center; }
+    .header-text h1 { font-size: 30px; font-weight: bold; color: #0f172a; letter-spacing: 0.3px; text-align: center; }
     .filters { display: grid; grid-template-columns: 130px 1fr; row-gap: 6px; column-gap: 15px; margin-bottom: 25px; max-width: 750px; }
     .filters .label { font-weight: bold; color: #0f172a; font-size: 14px; }
     .filters .value { color: #1e293b; font-size: 14px; }
@@ -795,8 +812,17 @@ class ReporteController extends Controller
     .row-grand-total td { background: #0d6efd !important; color: #ffffff; font-weight: 700; border: none; }
     .row-grand-total td.total-label { text-align: right; font-size: 14px; }
     .row-grand-total td.cantidad { text-align: right; color: #ffffff; font-size: 14px; }
-    @media print { body { padding: 12px; } }
+    @media print {
+        body { padding: 12px; }
+        .no-print { display: none !important; }
+    }
 </style></head><body>
+<div class="no-print">
+    <button type="button" class="btn-print" onclick="window.print()">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>
+        Imprimir
+    </button>
+</div>
 <div class="header">
     <div class="header-logo">' . $logoSvg . '</div>
     <div class="header-text">
@@ -837,7 +863,6 @@ class ReporteController extends Controller
         </tr>';
 
         $html .= '</tbody></table>
-<script>window.onload = function() { window.print(); }</script>
 </body></html>';
 
         return response($html)->header('Content-Type', 'text/html');
