@@ -171,26 +171,37 @@ class ReporteController extends Controller
         $query = $this->getKardexQuery($request);
         $resultados = $this->applyKardexFilters($query, $request)->get();
 
+        $logoSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
+            <polygon points="36,2 14,34 26,34 22,56 44,24 32,24" fill="#28a745"/>
+            <text x="30" y="58" text-anchor="middle" font-size="9" font-weight="bold" fill="#1a1a2e">INTENERGY</text>
+        </svg>';
+
         $html = '<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <title>Entrada / Salida (Kardex)</title>
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; font-size: 11px; color: #333; padding: 20px; }
-    h2 { text-align: center; margin-bottom: 4px; font-size: 16px; }
-    .info { text-align: center; color: #666; margin-bottom: 15px; font-size: 10px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th { background: #2c3e50; color: white; padding: 7px 5px; text-align: left; font-size: 10px; }
-    td { padding: 6px 5px; border-bottom: 1px solid #ddd; font-size: 10px; }
-    tr:nth-child(even) { background: #f5f5f5; }
-    .badge-ent { background: #28a745; color: white; padding: 2px 8px; border-radius: 3px; font-size: 9px; }
-    .badge-sal { background: #dc3545; color: white; padding: 2px 8px; border-radius: 3px; font-size: 9px; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #333; padding: 15px; }
+    .header { display: flex; align-items: flex-start; gap: 20px; margin-bottom: 15px; }
+    .header-logo { flex-shrink: 0; margin-top: 5px; }
+    .header-text h1 { font-size: 26px; font-weight: bold; color: #1a1a2e; letter-spacing: 0.5px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th { background: #1a3a5c; color: white; padding: 10px 6px; text-align: center; font-size: 10px; font-weight: bold; border: 1px solid #1a3a5c; }
+    td { padding: 7px 6px; border-bottom: 1px solid #dee2e6; font-size: 9px; text-align: center; }
+    tr:nth-child(even) { background: #f5f7fa; }
+    .badge-ent { background: #28a745; color: white; padding: 4px 10px; border-radius: 3px; font-size: 9px; font-weight: bold; }
+    .badge-sal { background: #dc3545; color: white; padding: 4px 10px; border-radius: 3px; font-size: 9px; font-weight: bold; }
+    .footer { margin-top: 25px; text-align: center; font-size: 9px; color: #aaa; border-top: 1px solid #e0e0e0; padding-top: 12px; }
     @media print { body { padding: 10px; } }
 </style></head><body>
-<h2>Entrada / Salida (Kardex)</h2>
-<div class="info">Generado: ' . date('d/m/Y H:i') . ' | Total: ' . $resultados->count() . ' registro(s)</div>
+<div class="header">
+    <div class="header-logo">' . $logoSvg . '</div>
+    <div class="header-text">
+        <h1>Entrada / Salida (Kardex)</h1>
+    </div>
+</div>
 <table>
-<thead><tr><th>Id Orden</th><th>Proyecto</th><th>Nombre De La Obra</th><th>Lugar</th><th>Fecha</th><th>Tipo Movimiento</th><th>Sub Tipo Movimiento</th><th>Articulo</th><th>Cantidad</th><th>Nº Documento</th></tr></thead>
+<thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>LUGAR</th><th>FECHA</th><th>TIPO MOVIMIENTO</th><th>SUB TIPO</th><th>ARTICULO</th><th>CANTIDAD</th><th>Nº DOCUMENTO</th></tr></thead>
 <tbody>';
 
         foreach ($resultados as $r) {
@@ -210,6 +221,7 @@ class ReporteController extends Controller
         }
 
         $html .= '</tbody></table>
+<div class="footer">Generado: ' . date('d/m/Y H:i') . ' | Total: ' . $resultados->count() . ' registro(s) | INTENERGY</div>
 <script>window.onload = function() { window.print(); }</script>
 </body></html>';
 
@@ -467,31 +479,27 @@ class ReporteController extends Controller
     {
         $resultados = $this->getOrdenesTrabajoQuery($request);
 
-        // Obtener nombres de los filtros aplicados
         $proyectoNombre = 'Todos';
         if ($request->filled('proyecto')) {
             $p = DB::table('proyecto')->where('id', $request->proyecto)->first();
             $proyectoNombre = $p ? $p->nombre : 'Todos';
         }
-
         $obraNombre = 'Todas';
         if ($request->filled('obra')) {
             $o = DB::table('obra')->where('id', $request->obra)->first();
             $obraNombre = $o ? $o->nombre : 'Todas';
         }
-
         $estadoNombre = 'Todos';
         if ($request->filled('estado')) {
             $e = DB::table('estado_ordenes')->where('id_estado_orden', $request->estado)->first();
             $estadoNombre = $e ? $e->estado : 'Todos';
         }
+        $fechaDesde = $request->filled('fecha_desde') ? date('d/m/Y', strtotime($request->fecha_desde)) : date('d/m/Y');
+        $fechaHasta = $request->filled('fecha_hasta') ? date('d/m/Y', strtotime($request->fecha_hasta)) : date('d/m/Y');
 
-        $fechaDesde = $request->filled('fecha_desde') ? date('Y-m-d', strtotime($request->fecha_desde)) : date('Y-m-01');
-        $fechaHasta = $request->filled('fecha_hasta') ? date('Y-m-d', strtotime($request->fecha_hasta)) : date('Y-m-d');
-
-        $logoSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
-            <polygon points="30,2 12,28 22,28 18,48 38,20 28,20" fill="#28a745"/>
-            <text x="25" y="48" text-anchor="middle" font-size="8" font-weight="bold" fill="#1a1a2e">INTENERGY</text>
+        $logoSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
+            <polygon points="36,2 14,34 26,34 22,56 44,24 32,24" fill="#28a745"/>
+            <text x="30" y="58" text-anchor="middle" font-size="9" font-weight="bold" fill="#1a1a2e">INTENERGY</text>
         </svg>';
 
         $html = '<!DOCTYPE html>
@@ -499,31 +507,32 @@ class ReporteController extends Controller
 <title>Reporte de Ordenes de Trabajo</title>
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; font-size: 11px; color: #333; padding: 20px; }
-    .header { display: flex; align-items: flex-start; gap: 15px; margin-bottom: 10px; }
-    .header-logo { flex-shrink: 0; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #333; padding: 15px; }
+    .header { display: flex; align-items: flex-start; gap: 20px; margin-bottom: 15px; }
+    .header-logo { flex-shrink: 0; margin-top: 5px; }
     .header-text { flex-grow: 1; }
-    .header-text h1 { font-size: 20px; font-weight: bold; color: #1a1a2e; margin-bottom: 4px; }
-    .header-text .subtitle { font-size: 11px; color: #666; }
-    .filters { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; padding: 10px 15px; margin-bottom: 15px; }
-    .filters h3 { font-size: 12px; font-weight: bold; color: #1a1a2e; margin-bottom: 6px; text-decoration: underline; }
-    .filters p { font-size: 10px; color: #444; margin: 2px 0; }
-    .filters strong { color: #1a1a2e; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th { background: #0d6efd; color: white; padding: 8px 6px; text-align: left; font-size: 10px; font-weight: bold; }
-    td { padding: 6px; border-bottom: 1px solid #dee2e6; font-size: 10px; }
-    tr:nth-child(even) { background: #f8f9fa; }
-    .badge-success { background: #28a745; color: white; padding: 3px 10px; border-radius: 3px; font-size: 9px; font-weight: bold; }
-    .badge-warning { background: #ffc107; color: #333; padding: 3px 10px; border-radius: 3px; font-size: 9px; font-weight: bold; }
-    .badge-secondary { background: #6c757d; color: white; padding: 3px 10px; border-radius: 3px; font-size: 9px; font-weight: bold; }
-    .footer { margin-top: 20px; text-align: center; font-size: 9px; color: #999; border-top: 1px solid #eee; padding-top: 10px; }
+    .header-text h1 { font-size: 26px; font-weight: bold; color: #1a1a2e; margin-bottom: 6px; letter-spacing: 0.5px; }
+    .header-text .subtitle { font-size: 13px; color: #555; font-weight: bold; }
+    .filters { background: #f8f9fa; border: 1px solid #dee2e6; padding: 12px 15px; margin-bottom: 18px; }
+    .filters h3 { font-size: 13px; font-weight: bold; color: #1a1a2e; margin-bottom: 8px; text-decoration: underline; }
+    .filters p { font-size: 11px; color: #444; margin: 3px 0; }
+    .filters strong { color: #1a1a2e; font-weight: bold; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th { background: #1a3a5c; color: white; padding: 10px 8px; text-align: center; font-size: 11px; font-weight: bold; border: 1px solid #1a3a5c; }
+    td { padding: 7px 8px; border-bottom: 1px solid #dee2e6; font-size: 10px; text-align: center; }
+    tr:nth-child(even) { background: #f5f7fa; }
+    tr:hover { background: #e8f0fe; }
+    .badge-aprobado { background: #28a745; color: white; padding: 4px 12px; border-radius: 3px; font-size: 9px; font-weight: bold; }
+    .badge-grabado { background: #6c757d; color: white; padding: 4px 12px; border-radius: 3px; font-size: 9px; font-weight: bold; }
+    .badge-pendiente { background: #ffc107; color: #333; padding: 4px 12px; border-radius: 3px; font-size: 9px; font-weight: bold; }
+    .footer { margin-top: 25px; text-align: center; font-size: 9px; color: #aaa; border-top: 1px solid #e0e0e0; padding-top: 12px; }
     @media print { body { padding: 10px; } }
 </style></head><body>
 <div class="header">
     <div class="header-logo">' . $logoSvg . '</div>
     <div class="header-text">
         <h1>Reporte de Ordenes de Trabajo</h1>
-        <div class="subtitle">DESDE: ' . date('d/m/Y', strtotime($fechaDesde)) . ' HASTA: ' . date('d/m/Y', strtotime($fechaHasta)) . '</div>
+        <div class="subtitle">DESDE: ' . $fechaDesde . ' HASTA: ' . $fechaHasta . '</div>
     </div>
 </div>
 <div class="filters">
@@ -538,11 +547,11 @@ class ReporteController extends Controller
 <tbody>';
 
         foreach ($resultados as $row) {
-            $badgeClass = match($row->id_estado_orden) {
-                1 => 'badge-success',
-                2 => 'badge-warning',
-                default => 'badge-secondary'
-            };
+            $estadoClass = 'badge-grabado';
+            $estadoTexto = $row->estado_orden;
+            if ($row->id_estado_orden == 1) { $estadoClass = 'badge-aprobado'; }
+            elseif ($row->id_estado_orden == 2) { $estadoClass = 'badge-pendiente'; }
+
             $html .= '<tr>
                 <td>' . $row->id_orden . '</td>
                 <td><strong>' . $row->identificador . '</strong></td>
@@ -551,7 +560,7 @@ class ReporteController extends Controller
                 <td>' . ($row->fecha ? date('d/m/Y', strtotime($row->fecha)) : '-') . '</td>
                 <td>' . $row->lugar . '</td>
                 <td>' . ($row->observacion ?: '-') . '</td>
-                <td><span class="' . $badgeClass . '">' . $row->estado_orden . '</span></td>
+                <td><span class="' . $estadoClass . '">' . $estadoTexto . '</span></td>
             </tr>';
         }
 
@@ -745,9 +754,9 @@ class ReporteController extends Controller
             $granTotal += $row->cantidad;
         }
 
-        $logoSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
-            <polygon points="30,2 12,28 22,28 18,48 38,20 28,20" fill="#28a745"/>
-            <text x="25" y="48" text-anchor="middle" font-size="8" font-weight="bold" fill="#1a1a2e">INTENERGY</text>
+        $logoSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
+            <polygon points="36,2 14,34 26,34 22,56 44,24 32,24" fill="#28a745"/>
+            <text x="30" y="58" text-anchor="middle" font-size="9" font-weight="bold" fill="#1a1a2e">INTENERGY</text>
         </svg>';
 
         $html = '<!DOCTYPE html>
@@ -755,22 +764,25 @@ class ReporteController extends Controller
 <title>Reporte de Pedido de Materiales</title>
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; font-size: 11px; color: #333; padding: 20px; }
-    .header { display: flex; align-items: flex-start; gap: 15px; margin-bottom: 15px; }
-    .header-logo { flex-shrink: 0; }
-    .header-text h1 { font-size: 20px; font-weight: bold; color: #1a1a2e; margin-bottom: 4px; }
-    .filters { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; padding: 10px 15px; margin-bottom: 15px; }
-    .filters p { font-size: 11px; color: #444; margin: 2px 0; }
-    .filters strong { color: #1a1a2e; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th { background: #0d6efd; color: white; padding: 8px 6px; text-align: left; font-size: 10px; font-weight: bold; }
-    td { padding: 6px; border-bottom: 1px solid #dee2e6; font-size: 10px; }
-    tr:nth-child(even) { background: #f8f9fa; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #333; padding: 15px; }
+    .header { display: flex; align-items: flex-start; gap: 20px; margin-bottom: 15px; }
+    .header-logo { flex-shrink: 0; margin-top: 5px; }
+    .header-text h1 { font-size: 26px; font-weight: bold; color: #1a1a2e; letter-spacing: 0.5px; }
+    .filters { background: #f8f9fa; border: 1px solid #dee2e6; padding: 12px 15px; margin-bottom: 18px; }
+    .filters h3 { font-size: 13px; font-weight: bold; color: #1a1a2e; margin-bottom: 8px; text-decoration: underline; }
+    .filters p { font-size: 11px; color: #444; margin: 3px 0; }
+    .filters strong { color: #1a1a2e; font-weight: bold; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th { background: #1a3a5c; color: white; padding: 10px 8px; text-align: center; font-size: 11px; font-weight: bold; border: 1px solid #1a3a5c; }
+    td { padding: 7px 8px; border-bottom: 1px solid #dee2e6; font-size: 10px; }
+    td.fecha, td.lugar { text-align: center; }
+    td.cantidad { text-align: right; font-weight: bold; }
+    tr:nth-child(even) { background: #f5f7fa; }
     .row-total { background: #e8f4fd !important; font-weight: bold; }
-    .row-total td { border-top: 2px solid #0d6efd; padding: 5px 6px; font-size: 10px; }
-    .row-grand-total { background: #0d6efd !important; color: white; font-weight: bold; }
-    .row-grand-total td { padding: 8px 6px; font-size: 11px; }
-    .footer { margin-top: 20px; text-align: center; font-size: 9px; color: #999; border-top: 1px solid #eee; padding-top: 10px; }
+    .row-total td { border-top: 2px solid #1a3a5c; padding: 6px 8px; font-size: 10px; text-align: right; }
+    .row-grand-total { background: #1a3a5c !important; color: white; font-weight: bold; }
+    .row-grand-total td { padding: 10px 8px; font-size: 11px; text-align: right; }
+    .footer { margin-top: 25px; text-align: center; font-size: 9px; color: #aaa; border-top: 1px solid #e0e0e0; padding-top: 12px; }
     @media print { body { padding: 10px; } }
 </style></head><body>
 <div class="header">
@@ -780,32 +792,33 @@ class ReporteController extends Controller
     </div>
 </div>
 <div class="filters">
+    <h3>Filtros aplicados:</h3>
     <p><strong>PROYECTO:</strong> ' . ($proyecto ?: 'Todos') . '</p>
     <p><strong>OBRA:</strong> ' . ($obra ?: 'Todas') . '</p>
     <p><strong>ID ORDEN:</strong> ' . $identificador . '</p>
 </div>
 <table>
-<thead><tr><th>FECHA</th><th>LUGAR</th><th>ARTICULO</th><th style="text-align:right;">CANTIDAD</th></tr></thead>
+<thead><tr><th>FECHA</th><th>LUGAR</th><th>ARTICULO</th><th>CANTIDAD</th></tr></thead>
 <tbody>';
 
         foreach ($agrupados as $articulo => $items) {
             foreach ($items as $row) {
                 $html .= '<tr>
-                    <td>' . ($row->fecha ? date('d/m/Y', strtotime($row->fecha)) : '-') . '</td>
-                    <td>' . ($row->lugar ?: '-') . '</td>
+                    <td class="fecha">' . ($row->fecha ? date('d/m/Y', strtotime($row->fecha)) : '-') . '</td>
+                    <td class="lugar">' . ($row->lugar ?: '-') . '</td>
                     <td>' . $row->articulo . '</td>
-                    <td style="text-align:right;">' . number_format($row->cantidad, 2) . '</td>
+                    <td class="cantidad">' . number_format($row->cantidad, 2) . '</td>
                 </tr>';
             }
             $html .= '<tr class="row-total">
-                <td colspan="3" style="text-align:right;">TOTALES ' . strtoupper($articulo) . ':</td>
-                <td style="text-align:right;">' . number_format($totales[$articulo], 2) . '</td>
+                <td colspan="3">TOTAL ' . strtoupper($articulo) . ':</td>
+                <td class="cantidad">' . number_format($totales[$articulo], 2) . '</td>
             </tr>';
         }
 
         $html .= '<tr class="row-grand-total">
-            <td colspan="3" style="text-align:right;">TOTALES GENERALES:</td>
-            <td style="text-align:right;">' . number_format($granTotal, 2) . '</td>
+            <td colspan="3">TOTALES GENERALES:</td>
+            <td class="cantidad">' . number_format($granTotal, 2) . '</td>
         </tr>';
 
         $html .= '</tbody></table>
@@ -1064,57 +1077,64 @@ class ReporteController extends Controller
         $informes = $this->getEjecucionInformes($request);
         $imagenes = $this->getEjecucionInformesImagenes($request);
 
+        $logoSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
+            <polygon points="36,2 14,34 26,34 22,56 44,24 32,24" fill="#28a745"/>
+            <text x="30" y="58" text-anchor="middle" font-size="9" font-weight="bold" fill="#1a1a2e">INTENERGY</text>
+        </svg>';
+
         $html = '<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <title>Reporte de Ejecución de Obra</title>
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; font-size: 10px; color: #333; padding: 15px; }
-    h2 { text-align: center; margin-bottom: 4px; font-size: 15px; }
-    h3 { margin: 15px 0 5px; font-size: 12px; color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 3px; }
-    .info { text-align: center; color: #666; margin-bottom: 10px; font-size: 9px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; }
-    th { background: #2c3e50; color: white; padding: 5px 4px; text-align: left; font-size: 9px; }
-    td { padding: 4px; border-bottom: 1px solid #ddd; font-size: 9px; }
-    tr:nth-child(even) { background: #f5f5f5; }
-    .badge { padding: 1px 6px; border-radius: 3px; font-size: 8px; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #333; padding: 15px; }
+    .header { display: flex; align-items: flex-start; gap: 20px; margin-bottom: 15px; }
+    .header-logo { flex-shrink: 0; margin-top: 5px; }
+    .header-text h1 { font-size: 26px; font-weight: bold; color: #1a1a2e; letter-spacing: 0.5px; }
+    h3 { margin: 18px 0 6px; font-size: 13px; color: #1a3a5c; border-bottom: 2px solid #1a3a5c; padding-bottom: 4px; font-weight: bold; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; margin-bottom: 15px; }
+    th { background: #1a3a5c; color: white; padding: 8px 5px; text-align: center; font-size: 9px; font-weight: bold; border: 1px solid #1a3a5c; }
+    td { padding: 6px 5px; border-bottom: 1px solid #dee2e6; font-size: 9px; text-align: center; }
+    tr:nth-child(even) { background: #f5f7fa; }
+    .badge { padding: 3px 8px; border-radius: 3px; font-size: 8px; font-weight: bold; }
     .badge-si { background: #28a745; color: white; }
     .badge-no { background: #ffc107; color: #333; }
+    .footer { margin-top: 25px; text-align: center; font-size: 9px; color: #aaa; border-top: 1px solid #e0e0e0; padding-top: 12px; }
     @media print { body { padding: 10px; } }
 </style></head><body>
-<h2>Reporte de Ejecución de Obra</h2>
-<div class="info">Generado: ' . date('d/m/Y H:i') . '</div>';
+<div class="header">
+    <div class="header-logo">' . $logoSvg . '</div>
+    <div class="header-text">
+        <h1>Reporte de Ejecución de Obra</h1>
+    </div>
+</div>';
 
         // Materiales
         $html .= '<h3>Materiales a Utilizar (' . $materiales->count() . ' registros)</h3>';
-        $html .= '<table><thead><tr><th>Id Orden</th><th>Proyecto</th><th>Nombre De La Obra</th><th>Fecha</th><th>Lugar</th><th>Articulo</th><th>Cantidad</th><th>Contabilizado</th></tr></thead><tbody>';
+        $html .= '<table><thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>ARTICULO</th><th>CANTIDAD</th><th>CONTAB.</th></tr></thead><tbody>';
         foreach ($materiales as $r) {
-            $html .= '<tr><td>' . $r->identificador . '</td><td>' . $r->proyecto . '</td><td>' . $r->obra . '</td><td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '') . '</td><td>' . $r->lugar . '</td><td>' . $r->articulo . '</td><td>' . number_format($r->cantidad, 2) . '</td><td><span class="badge ' . ($r->Contabilizado ? 'badge-si' : 'badge-no') . '">' . ($r->Contabilizado ? 'Sí' : 'No') . '</span></td></tr>';
+            $html .= '<tr><td>' . $r->identificador . '</td><td>' . $r->proyecto . '</td><td>' . $r->obra . '</td><td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '-') . '</td><td>' . $r->lugar . '</td><td>' . $r->articulo . '</td><td><strong>' . number_format($r->cantidad, 2) . '</strong></td><td><span class="badge ' . ($r->Contabilizado ? 'badge-si' : 'badge-no') . '">' . ($r->Contabilizado ? 'Sí' : 'No') . '</span></td></tr>';
         }
         $html .= '</tbody></table>';
 
         // Horas
         $html .= '<h3>Horas de Trabajo (' . $horas->count() . ' registros)</h3>';
-        $html .= '<table><thead><tr><th>Id Orden</th><th>Proyecto</th><th>Nombre De La Obra</th><th>Fecha</th><th>Lugar</th><th>Empleado</th><th>H.Entrada</th><th>H.Salida</th><th>H.Normal</th><th>H.Extras</th><th>H.Extraordinarias</th></tr></thead><tbody>';
+        $html .= '<table><thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>EMPLEADO</th><th>H.ENTRADA</th><th>H.SALIDA</th><th>H.NORMAL</th><th>H.EXTRAS</th><th>H.EXTRAORD.</th></tr></thead><tbody>';
         foreach ($horas as $r) {
-            $html .= '<tr><td>' . $r->identificador . '</td><td>' . $r->proyecto . '</td><td>' . $r->obra . '</td><td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '') . '</td><td>' . $r->lugar . '</td><td>' . $r->empleado . '</td><td>' . $r->hora_entrada . '</td><td>' . $r->hora_salida . '</td><td>' . $r->cantidad_horas_normal . '</td><td>' . $r->cantidad_horas_extra . '</td><td>' . $r->cantidad_horas_extraordinaria . '</td></tr>';
+            $html .= '<tr><td>' . $r->identificador . '</td><td>' . $r->proyecto . '</td><td>' . $r->obra . '</td><td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '-') . '</td><td>' . $r->lugar . '</td><td>' . $r->empleado . '</td><td>' . $r->hora_entrada . '</td><td>' . $r->hora_salida . '</td><td>' . $r->cantidad_horas_normal . '</td><td>' . $r->cantidad_horas_extra . '</td><td>' . $r->cantidad_horas_extraordinaria . '</td></tr>';
         }
         $html .= '</tbody></table>';
 
         // Informes
         $html .= '<h3>Informes Diarios (' . $informes->count() . ' registros)</h3>';
-        $html .= '<table><thead><tr><th>Id Informe</th><th>Nombre De La Obra</th><th>Fecha</th><th>Lugar</th><th>Ubicación</th><th>Observación</th><th>Imágenes</th></tr></thead><tbody>';
+        $html .= '<table><thead><tr><th>ID INFORME</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>UBICACION</th><th>OBSERVACION</th></tr></thead><tbody>';
         foreach ($informes as $r) {
-            $imgs = $imagenes->get($r->id_informe_diario_ejecucion, collect());
-            $imgsHtml = '';
-            foreach ($imgs as $img) {
-                $imgsHtml .= '<img src="' . $img->ruta_imagen . '" style="width:35px;height:35px;object-fit:cover;border-radius:3px;border:1px solid #ccc;margin-right:2px;">';
-            }
-            $html .= '<tr><td>' . $r->id_informe_diario_ejecucion . '</td><td>' . $r->obra . '</td><td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '') . '</td><td>' . $r->lugar . '</td><td>' . $r->ubicacion . '</td><td>' . ($r->observacion ?: '-') . '</td><td>' . ($imgsHtml ?: '-') . '</td></tr>';
+            $html .= '<tr><td>' . $r->id_informe_diario_ejecucion . '</td><td>' . $r->obra . '</td><td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '-') . '</td><td>' . $r->lugar . '</td><td>' . $r->ubicacion . '</td><td>' . ($r->observacion ?: '-') . '</td></tr>';
         }
         $html .= '</tbody></table>';
 
-        $html .= '<script>window.onload = function() { window.print(); }</script></body></html>';
+        $html .= '<div class="footer">Generado: ' . date('d/m/Y H:i') . ' | INTENERGY</div>
+<script>window.onload = function() { window.print(); }</script></body></html>';
 
         return response($html)->header('Content-Type', 'text/html');
     }
@@ -1438,37 +1458,48 @@ class ReporteController extends Controller
         $liquidacion = $this->getOrCreateLiquidacion($request);
         $liquidacionImagenes = $liquidacion ? $liquidacion->imagenes()->where('estado', 1)->get() : collect();
 
+        $logoSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
+            <polygon points="36,2 14,34 26,34 22,56 44,24 32,24" fill="#28a745"/>
+            <text x="30" y="58" text-anchor="middle" font-size="9" font-weight="bold" fill="#1a1a2e">INTENERGY</text>
+        </svg>';
+
         $html = '<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <title>Liquidación de Trabajo</title>
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; font-size: 10px; color: #333; padding: 15px; }
-    h2 { text-align: center; margin-bottom: 4px; font-size: 15px; }
-    h3 { margin: 15px 0 5px; font-size: 12px; color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 3px; }
-    .info { text-align: center; color: #666; margin-bottom: 10px; font-size: 9px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; }
-    th { background: #2c3e50; color: white; padding: 5px 4px; text-align: left; font-size: 9px; }
-    td { padding: 4px; border-bottom: 1px solid #ddd; font-size: 9px; }
-    tr:nth-child(even) { background: #f5f5f5; }
-    .text-section { background: #f8f9fa; padding: 10px; border-radius: 4px; margin-bottom: 15px; white-space: pre-wrap; font-size: 10px; }
-    .badge { padding: 1px 6px; border-radius: 3px; font-size: 8px; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #333; padding: 15px; }
+    .header { display: flex; align-items: flex-start; gap: 20px; margin-bottom: 15px; }
+    .header-logo { flex-shrink: 0; margin-top: 5px; }
+    .header-text h1 { font-size: 26px; font-weight: bold; color: #1a1a2e; letter-spacing: 0.5px; }
+    h3 { margin: 18px 0 6px; font-size: 13px; color: #1a3a5c; border-bottom: 2px solid #1a3a5c; padding-bottom: 4px; font-weight: bold; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; margin-bottom: 15px; }
+    th { background: #1a3a5c; color: white; padding: 8px 5px; text-align: center; font-size: 9px; font-weight: bold; border: 1px solid #1a3a5c; }
+    td { padding: 6px 5px; border-bottom: 1px solid #dee2e6; font-size: 9px; text-align: center; }
+    tr:nth-child(even) { background: #f5f7fa; }
+    .text-section { background: #f8f9fa; border: 1px solid #dee2e6; padding: 12px 15px; margin-bottom: 15px; white-space: pre-wrap; font-size: 11px; line-height: 1.5; }
+    .badge { padding: 3px 8px; border-radius: 3px; font-size: 8px; font-weight: bold; }
     .badge-si { background: #28a745; color: white; }
     .badge-no { background: #ffc107; color: #333; }
     .imgs-grid { display: flex; flex-wrap: wrap; gap: 5px; }
-    .imgs-grid img { width: 40px; height: 40px; object-fit: cover; border-radius: 3px; border: 1px solid #ddd; }
+    .imgs-grid img { width: 45px; height: 45px; object-fit: cover; border-radius: 3px; border: 1px solid #ccc; }
+    .footer { margin-top: 25px; text-align: center; font-size: 9px; color: #aaa; border-top: 1px solid #e0e0e0; padding-top: 12px; }
     @media print { body { padding: 10px; } }
 </style></head><body>
-<h2>Liquidación de Trabajo</h2>
-<div class="info">Generado: ' . date('d/m/Y H:i') . '</div>';
+<div class="header">
+    <div class="header-logo">' . $logoSvg . '</div>
+    <div class="header-text">
+        <h1>Liquidación de Trabajo</h1>
+    </div>
+</div>';
 
         // Mano de Obra
         $html .= '<h3>Mano de Obra</h3>';
-        $html .= '<div class="text-section">' . ($liquidacion->mano_obra ? strip_tags($liquidacion->mano_obra) : '-') . '</div>';
+        $html .= '<div class="text-section">' . ($liquidacion && $liquidacion->mano_obra ? strip_tags($liquidacion->mano_obra) : '-') . '</div>';
 
         // Importante
         $html .= '<h3>Importante</h3>';
-        $html .= '<div class="text-section">' . ($liquidacion->importante ? strip_tags($liquidacion->importante) : '-') . '</div>';
+        $html .= '<div class="text-section">' . ($liquidacion && $liquidacion->importante ? strip_tags($liquidacion->importante) : '-') . '</div>';
 
         // Imágenes Adjuntas de Liquidación
         if ($liquidacionImagenes->count() > 0) {
@@ -1481,7 +1512,7 @@ class ReporteController extends Controller
 
         // Materiales
         $html .= '<h3>Materiales a Utilizar (' . $materiales->count() . ' registros)</h3>';
-        $html .= '<table><thead><tr><th>Id Orden</th><th>Proyecto</th><th>Nombre De La Obra</th><th>Fecha</th><th>Lugar</th><th>Articulo</th><th>Cantidad</th><th>Contabilizado</th></tr></thead><tbody>';
+        $html .= '<table><thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>ARTICULO</th><th>CANTIDAD</th><th>CONTAB.</th></tr></thead><tbody>';
         foreach ($materiales as $r) {
             $html .= '<tr>
                 <td>' . $r->identificador . '</td>
@@ -1490,7 +1521,7 @@ class ReporteController extends Controller
                 <td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '-') . '</td>
                 <td>' . ($r->lugar ?: '-') . '</td>
                 <td>' . ($r->articulo ?: '-') . '</td>
-                <td>' . number_format($r->cantidad, 2) . '</td>
+                <td><strong>' . number_format($r->cantidad, 2) . '</strong></td>
                 <td><span class="badge ' . ($r->Contabilizado ? 'badge-si' : 'badge-no') . '">' . ($r->Contabilizado ? 'Sí' : 'No') . '</span></td>
             </tr>';
         }
@@ -1498,7 +1529,7 @@ class ReporteController extends Controller
 
         // Horas
         $html .= '<h3>Horas de Trabajo (' . $horas->count() . ' registros)</h3>';
-        $html .= '<table><thead><tr><th>Id Orden</th><th>Proyecto</th><th>Nombre De La Obra</th><th>Fecha</th><th>Lugar</th><th>Empleado</th><th>H.Entrada</th><th>H.Salida</th><th>H.Normal</th><th>H.Extras</th><th>H.Extraordinarias</th></tr></thead><tbody>';
+        $html .= '<table><thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>EMPLEADO</th><th>H.ENTRADA</th><th>H.SALIDA</th><th>H.NORMAL</th><th>H.EXTRAS</th><th>H.EXTRAORD.</th></tr></thead><tbody>';
         foreach ($horas as $r) {
             $html .= '<tr>
                 <td>' . $r->identificador . '</td>
@@ -1518,13 +1549,8 @@ class ReporteController extends Controller
 
         // Informes Diarios
         $html .= '<h3>Informes Diarios (' . $informes->count() . ' registros)</h3>';
-        $html .= '<table><thead><tr><th>Id Informe</th><th>Nombre De La Obra</th><th>Fecha</th><th>Lugar</th><th>Ubicación</th><th>Observación</th><th>Imágenes</th></tr></thead><tbody>';
+        $html .= '<table><thead><tr><th>ID INFORME</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>UBICACION</th><th>OBSERVACION</th></tr></thead><tbody>';
         foreach ($informes as $r) {
-            $imgs = $imagenes->get($r->id_informe_diario_ejecucion, collect());
-            $imgsHtml = '';
-            foreach ($imgs as $img) {
-                $imgsHtml .= '<img src="' . $img->ruta_imagen . '" style="width:35px;height:35px;object-fit:cover;border-radius:3px;border:1px solid #ddd;margin-right:3px;">';
-            }
             $html .= '<tr>
                 <td>' . $r->id_informe_diario_ejecucion . '</td>
                 <td>' . $r->obra . '</td>
@@ -1532,12 +1558,12 @@ class ReporteController extends Controller
                 <td>' . ($r->lugar ?: '-') . '</td>
                 <td>' . ($r->ubicacion ?: '-') . '</td>
                 <td>' . ($r->observacion ?: '-') . '</td>
-                <td>' . ($imgsHtml ?: '-') . '</td>
             </tr>';
         }
         $html .= '</tbody></table>';
 
-        $html .= '<script>window.onload = function() { window.print(); }</script>
+        $html .= '<div class="footer">Generado: ' . date('d/m/Y H:i') . ' | INTENERGY</div>
+<script>window.onload = function() { window.print(); }</script>
 </body></html>';
 
         return response($html)->header('Content-Type', 'text/html');
