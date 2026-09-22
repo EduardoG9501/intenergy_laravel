@@ -171,10 +171,7 @@ class ReporteController extends Controller
         $query = $this->getKardexQuery($request);
         $resultados = $this->applyKardexFilters($query, $request)->get();
 
-        $logoSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
-            <polygon points="36,2 14,34 26,34 22,56 44,24 32,24" fill="#28a745"/>
-            <text x="30" y="58" text-anchor="middle" font-size="9" font-weight="bold" fill="#1a1a2e">INTENERGY</text>
-        </svg>';
+        $logoSvg = $this->getLogoSvg();
 
         $html = '<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
@@ -474,6 +471,18 @@ class ReporteController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
+    private function getLogoSvg(): string
+    {
+        return '<svg xmlns="http://www.w3.org/2000/svg" width="140" height="80" viewBox="0 0 140 80">
+            <rect width="140" height="80" rx="2" fill="#111827"/>
+            <path d="M84 5 L120 5 C128 5, 132 13, 129 24 L113 68 C110 75, 103 78, 97 75 L84 5 Z" fill="#15803d"/>
+            <path d="M92 9 L114 9 C120 9, 123 15, 121 23 L108 60 C106 66, 101 68, 96 66 L92 9 Z" fill="#22c55e"/>
+            <path d="M99 13 L110 13 C114 13, 116 17, 115 22 L106 52 C105 56, 101 58, 98 56 L99 13 Z" fill="#4ade80"/>
+            <text x="10" y="38" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="bold" fill="#ffffff">INTENERGY</text>
+            <text x="10" y="55" font-family="Arial, Helvetica, sans-serif" font-size="8" fill="#94a3b8">Tecnología en energía</text>
+        </svg>';
+    }
+
     // Exportar a PDF (vista HTML imprimible)
     public function exportarOrdenesTrabajoPdf(Request $request)
     {
@@ -494,78 +503,77 @@ class ReporteController extends Controller
             $e = DB::table('estado_ordenes')->where('id_estado_orden', $request->estado)->first();
             $estadoNombre = $e ? $e->estado : 'Todos';
         }
-        $fechaDesde = $request->filled('fecha_desde') ? date('d/m/Y', strtotime($request->fecha_desde)) : date('d/m/Y');
-        $fechaHasta = $request->filled('fecha_hasta') ? date('d/m/Y', strtotime($request->fecha_hasta)) : date('d/m/Y');
+        $fechaDesde = $request->filled('fecha_desde') ? date('Y-m-d', strtotime($request->fecha_desde)) : date('Y-m-01');
+        $fechaHasta = $request->filled('fecha_hasta') ? date('Y-m-d', strtotime($request->fecha_hasta)) : date('Y-m-d');
 
-        $logoSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
-            <polygon points="36,2 14,34 26,34 22,56 44,24 32,24" fill="#28a745"/>
-            <text x="30" y="58" text-anchor="middle" font-size="9" font-weight="bold" fill="#1a1a2e">INTENERGY</text>
-        </svg>';
+        $logoSvg = $this->getLogoSvg();
 
         $html = '<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <title>Reporte de Ordenes de Trabajo</title>
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #333; padding: 15px; }
-    .header { display: flex; align-items: flex-start; gap: 20px; margin-bottom: 15px; }
-    .header-logo { flex-shrink: 0; margin-top: 5px; }
-    .header-text { flex-grow: 1; }
-    .header-text h1 { font-size: 26px; font-weight: bold; color: #1a1a2e; margin-bottom: 6px; letter-spacing: 0.5px; }
-    .header-text .subtitle { font-size: 13px; color: #555; font-weight: bold; }
-    .filters { background: #f8f9fa; border: 1px solid #dee2e6; padding: 12px 15px; margin-bottom: 18px; }
-    .filters h3 { font-size: 13px; font-weight: bold; color: #1a1a2e; margin-bottom: 8px; text-decoration: underline; }
-    .filters p { font-size: 11px; color: #444; margin: 3px 0; }
-    .filters strong { color: #1a1a2e; font-weight: bold; }
-    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-    th { background: #1a3a5c; color: white; padding: 10px 8px; text-align: center; font-size: 11px; font-weight: bold; border: 1px solid #1a3a5c; }
-    td { padding: 7px 8px; border-bottom: 1px solid #dee2e6; font-size: 10px; text-align: center; }
-    tr:nth-child(even) { background: #f5f7fa; }
-    tr:hover { background: #e8f0fe; }
-    .badge-aprobado { background: #28a745; color: white; padding: 4px 12px; border-radius: 3px; font-size: 9px; font-weight: bold; }
-    .badge-grabado { background: #6c757d; color: white; padding: 4px 12px; border-radius: 3px; font-size: 9px; font-weight: bold; }
-    .badge-pendiente { background: #ffc107; color: #333; padding: 4px 12px; border-radius: 3px; font-size: 9px; font-weight: bold; }
-    .footer { margin-top: 25px; text-align: center; font-size: 9px; color: #aaa; border-top: 1px solid #e0e0e0; padding-top: 12px; }
-    @media print { body { padding: 10px; } }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #1e293b; padding: 25px 30px; }
+    .header { display: flex; align-items: flex-start; gap: 30px; margin-bottom: 18px; }
+    .header-logo { flex-shrink: 0; }
+    .header-text { flex-grow: 1; padding-top: 4px; }
+    .header-text h1 { font-size: 32px; font-weight: bold; color: #0f172a; margin-bottom: 8px; letter-spacing: 0.3px; }
+    .header-text .dates { font-size: 18px; color: #334155; font-weight: 400; }
+    .filters { margin-bottom: 20px; line-height: 1.7; }
+    .filters .filters-title { font-size: 14px; font-weight: bold; color: #0f172a; text-decoration: underline; margin-bottom: 4px; display: inline-block; }
+    .filters p { font-size: 13.5px; color: #1e293b; margin: 2px 0; }
+    .filters strong { font-weight: 700; color: #0f172a; }
+    table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    th { background: #1976d2; color: white; padding: 11px 10px; text-align: left; font-size: 13px; font-weight: bold; }
+    td { padding: 10px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: left; color: #334155; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    .badge-estado { display: inline-block; padding: 4px 14px; border-radius: 3px; font-size: 12px; font-weight: bold; color: #fff; }
+    .badge-aprobado { background: #22c55e; }
+    .badge-grabado { background: #22c55e; }
+    .badge-pendiente { background: #eab308; color: #1e293b; }
+    .badge-otro { background: #94a3b8; }
+    @media print { body { padding: 12px; } }
 </style></head><body>
 <div class="header">
     <div class="header-logo">' . $logoSvg . '</div>
     <div class="header-text">
         <h1>Reporte de Ordenes de Trabajo</h1>
-        <div class="subtitle">DESDE: ' . $fechaDesde . ' HASTA: ' . $fechaHasta . '</div>
+        <div class="dates">DESDE: ' . $fechaDesde . '&nbsp;&nbsp;HASTA: ' . $fechaHasta . '</div>
     </div>
 </div>
 <div class="filters">
-    <h3>Filtros aplicados:</h3>
+    <div class="filters-title">Filtros aplicados:</div>
     <p><strong>Lugar:</strong> Todos</p>
-    <p><strong>Estado:</strong> ' . $estadoNombre . '</p>
-    <p><strong>Proyecto:</strong> ' . $proyectoNombre . '</p>
-    <p><strong>Nombre de la Obra:</strong> ' . $obraNombre . '</p>
+    <p><strong>Estado:</strong> ' . e($estadoNombre) . '</p>
+    <p><strong>Proyecto:</strong> ' . e($proyectoNombre) . '</p>
+    <p><strong>Nombre de la Obra:</strong> ' . e($obraNombre) . '</p>
 </div>
 <table>
-<thead><tr><th>ID ORDEN</th><th>IDENTIFICADOR</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>OBSERVACION</th><th>ESTADO</th></tr></thead>
+<thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>OBSERVACION</th><th>ESTADO</th></tr></thead>
 <tbody>';
 
         foreach ($resultados as $row) {
-            $estadoClass = 'badge-grabado';
-            $estadoTexto = $row->estado_orden;
-            if ($row->id_estado_orden == 1) { $estadoClass = 'badge-aprobado'; }
-            elseif ($row->id_estado_orden == 2) { $estadoClass = 'badge-pendiente'; }
+            $et = strtoupper($row->estado_orden ?? '');
+            if (str_contains($et, 'APROB') || str_contains($et, 'GRAB')) {
+                $estadoClass = 'badge-aprobado';
+            } elseif (str_contains($et, 'PEND')) {
+                $estadoClass = 'badge-pendiente';
+            } else {
+                $estadoClass = 'badge-otro';
+            }
 
             $html .= '<tr>
                 <td>' . $row->id_orden . '</td>
-                <td><strong>' . $row->identificador . '</strong></td>
-                <td>' . $row->proyecto . '</td>
-                <td>' . $row->obra . '</td>
-                <td>' . ($row->fecha ? date('d/m/Y', strtotime($row->fecha)) : '-') . '</td>
-                <td>' . $row->lugar . '</td>
-                <td>' . ($row->observacion ?: '-') . '</td>
-                <td><span class="' . $estadoClass . '">' . $estadoTexto . '</span></td>
+                <td>' . e($row->proyecto) . '</td>
+                <td>' . e($row->obra) . '</td>
+                <td>' . ($row->fecha ? date('Y-m-d', strtotime($row->fecha)) : '-') . '</td>
+                <td>' . e($row->lugar) . '</td>
+                <td>' . e($row->observacion ?: '-') . '</td>
+                <td><span class="badge-estado ' . $estadoClass . '">' . e($row->estado_orden) . '</span></td>
             </tr>';
         }
 
         $html .= '</tbody></table>
-<div class="footer">Generado: ' . date('d/m/Y H:i') . ' | Total: ' . $resultados->count() . ' registro(s) | INTENERGY</div>
 <script>window.onload = function() { window.print(); }</script>
 </body></html>';
 
@@ -617,7 +625,8 @@ class ReporteController extends Controller
             $query->where('pm.id_orden', $request->id_orden);
         }
 
-        $resultados = $query->orderBy('pm.fecha_solicitud', 'desc')
+        $resultados = $query->orderBy('a.nombre', 'asc')
+                            ->orderBy('pm.fecha_solicitud', 'desc')
                             ->orderBy('ot.identificador', 'asc')
                             ->get();
 
@@ -722,7 +731,7 @@ class ReporteController extends Controller
         $resultados = $this->getPedidoMaterialesQuery($request);
 
         // Obtener info de filtros
-        $identificador = 'Todas';
+        $identificador = '';
         $proyecto = '';
         $obra = '';
         if ($request->filled('id_orden')) {
@@ -737,6 +746,10 @@ class ReporteController extends Controller
                 $proyecto = $ot->proyecto ?? '';
                 $obra = $ot->obra ?? '';
             }
+        } elseif ($resultados->isNotEmpty()) {
+            $identificador = $resultados->first()->identificador;
+            $proyecto = $resultados->first()->proyecto;
+            $obra = $resultados->first()->obra;
         }
 
         // Agrupar artículos
@@ -754,36 +767,35 @@ class ReporteController extends Controller
             $granTotal += $row->cantidad;
         }
 
-        $logoSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
-            <polygon points="36,2 14,34 26,34 22,56 44,24 32,24" fill="#28a745"/>
-            <text x="30" y="58" text-anchor="middle" font-size="9" font-weight="bold" fill="#1a1a2e">INTENERGY</text>
-        </svg>';
+        $logoSvg = $this->getLogoSvg();
 
         $html = '<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
-<title>Reporte de Pedido de Materiales</title>
+<title>ReportePedidoMateriales</title>
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #333; padding: 15px; }
-    .header { display: flex; align-items: flex-start; gap: 20px; margin-bottom: 15px; }
-    .header-logo { flex-shrink: 0; margin-top: 5px; }
-    .header-text h1 { font-size: 26px; font-weight: bold; color: #1a1a2e; letter-spacing: 0.5px; }
-    .filters { background: #f8f9fa; border: 1px solid #dee2e6; padding: 12px 15px; margin-bottom: 18px; }
-    .filters h3 { font-size: 13px; font-weight: bold; color: #1a1a2e; margin-bottom: 8px; text-decoration: underline; }
-    .filters p { font-size: 11px; color: #444; margin: 3px 0; }
-    .filters strong { color: #1a1a2e; font-weight: bold; }
-    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-    th { background: #1a3a5c; color: white; padding: 10px 8px; text-align: center; font-size: 11px; font-weight: bold; border: 1px solid #1a3a5c; }
-    td { padding: 7px 8px; border-bottom: 1px solid #dee2e6; font-size: 10px; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: #0f172a; padding: 25px 30px; }
+    .header { display: flex; align-items: center; gap: 30px; margin-bottom: 25px; }
+    .header-logo { flex-shrink: 0; }
+    .header-text h1 { font-size: 30px; font-weight: bold; color: #0f172a; letter-spacing: 0.3px; }
+    .filters { display: grid; grid-template-columns: 130px 1fr; row-gap: 6px; column-gap: 15px; margin-bottom: 25px; max-width: 750px; }
+    .filters .label { font-weight: bold; color: #0f172a; font-size: 14px; }
+    .filters .value { color: #1e293b; font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    th { background: #0d6efd; color: white; padding: 12px 12px; font-size: 14px; font-weight: bold; text-align: center; }
+    th.col-cantidad { text-align: right; }
+    td { padding: 11px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13.5px; color: #334155; }
     td.fecha, td.lugar { text-align: center; }
-    td.cantidad { text-align: right; font-weight: bold; }
-    tr:nth-child(even) { background: #f5f7fa; }
-    .row-total { background: #e8f4fd !important; font-weight: bold; }
-    .row-total td { border-top: 2px solid #1a3a5c; padding: 6px 8px; font-size: 10px; text-align: right; }
-    .row-grand-total { background: #1a3a5c !important; color: white; font-weight: bold; }
-    .row-grand-total td { padding: 10px 8px; font-size: 11px; text-align: right; }
-    .footer { margin-top: 25px; text-align: center; font-size: 9px; color: #aaa; border-top: 1px solid #e0e0e0; padding-top: 12px; }
-    @media print { body { padding: 10px; } }
+    td.articulo { text-align: left; }
+    td.cantidad { text-align: right; font-weight: bold; color: #0f172a; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    .row-total td { background: #f8fafc !important; border-bottom: 1px solid #e2e8f0; }
+    .row-total td.total-label { text-align: right; font-weight: 700; color: #0f172a; font-size: 13.5px; }
+    .row-total td.cantidad { font-weight: 700; }
+    .row-grand-total td { background: #0d6efd !important; color: #ffffff; font-weight: 700; border: none; }
+    .row-grand-total td.total-label { text-align: right; font-size: 14px; }
+    .row-grand-total td.cantidad { text-align: right; color: #ffffff; font-size: 14px; }
+    @media print { body { padding: 12px; } }
 </style></head><body>
 <div class="header">
     <div class="header-logo">' . $logoSvg . '</div>
@@ -792,37 +804,39 @@ class ReporteController extends Controller
     </div>
 </div>
 <div class="filters">
-    <h3>Filtros aplicados:</h3>
-    <p><strong>PROYECTO:</strong> ' . ($proyecto ?: 'Todos') . '</p>
-    <p><strong>OBRA:</strong> ' . ($obra ?: 'Todas') . '</p>
-    <p><strong>ID ORDEN:</strong> ' . $identificador . '</p>
+    <div class="label">PROYECTO:</div><div class="value">' . e($proyecto ?: 'Todos') . '</div>
+    <div class="label">OBRA:</div><div class="value">' . e($obra ?: 'Todas') . '</div>
+    <div class="label">ID ORDEN:</div><div class="value">' . e($identificador ?: '-') . '</div>
 </div>
 <table>
-<thead><tr><th>FECHA</th><th>LUGAR</th><th>ARTICULO</th><th>CANTIDAD</th></tr></thead>
+<thead><tr><th>FECHA</th><th>LUGAR</th><th>ARTICULO</th><th class="col-cantidad">CANTIDAD</th></tr></thead>
 <tbody>';
 
         foreach ($agrupados as $articulo => $items) {
             foreach ($items as $row) {
                 $html .= '<tr>
-                    <td class="fecha">' . ($row->fecha ? date('d/m/Y', strtotime($row->fecha)) : '-') . '</td>
-                    <td class="lugar">' . ($row->lugar ?: '-') . '</td>
-                    <td>' . $row->articulo . '</td>
+                    <td class="fecha">' . ($row->fecha ? date('Y-m-d', strtotime($row->fecha)) : '-') . '</td>
+                    <td class="lugar">' . e($row->lugar ?: '-') . '</td>
+                    <td class="articulo">' . e($row->articulo) . '</td>
                     <td class="cantidad">' . number_format($row->cantidad, 2) . '</td>
                 </tr>';
             }
             $html .= '<tr class="row-total">
-                <td colspan="3">TOTAL ' . strtoupper($articulo) . ':</td>
+                <td class="fecha"></td>
+                <td class="lugar"></td>
+                <td class="total-label">TOTALES ' . strtoupper($articulo) . ':</td>
                 <td class="cantidad">' . number_format($totales[$articulo], 2) . '</td>
             </tr>';
         }
 
         $html .= '<tr class="row-grand-total">
-            <td colspan="3">TOTALES GENERALES:</td>
+            <td class="fecha"></td>
+            <td class="lugar"></td>
+            <td class="total-label">TOTALES GENERALES:</td>
             <td class="cantidad">' . number_format($granTotal, 2) . '</td>
         </tr>';
 
         $html .= '</tbody></table>
-<div class="footer">Generado: ' . date('d/m/Y H:i') . ' | Total: ' . $resultados->count() . ' registro(s) | INTENERGY</div>
 <script>window.onload = function() { window.print(); }</script>
 </body></html>';
 
@@ -1077,10 +1091,7 @@ class ReporteController extends Controller
         $informes = $this->getEjecucionInformes($request);
         $imagenes = $this->getEjecucionInformesImagenes($request);
 
-        $logoSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
-            <polygon points="36,2 14,34 26,34 22,56 44,24 32,24" fill="#28a745"/>
-            <text x="30" y="58" text-anchor="middle" font-size="9" font-weight="bold" fill="#1a1a2e">INTENERGY</text>
-        </svg>';
+        $logoSvg = $this->getLogoSvg();
 
         $html = '<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
@@ -1458,10 +1469,7 @@ class ReporteController extends Controller
         $liquidacion = $this->getOrCreateLiquidacion($request);
         $liquidacionImagenes = $liquidacion ? $liquidacion->imagenes()->where('estado', 1)->get() : collect();
 
-        $logoSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
-            <polygon points="36,2 14,34 26,34 22,56 44,24 32,24" fill="#28a745"/>
-            <text x="30" y="58" text-anchor="middle" font-size="9" font-weight="bold" fill="#1a1a2e">INTENERGY</text>
-        </svg>';
+        $logoSvg = $this->getLogoSvg();
 
         $html = '<!DOCTYPE html>
 <html><head><meta charset="UTF-8">

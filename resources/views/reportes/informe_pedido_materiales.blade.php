@@ -11,6 +11,51 @@
     .ot-dropdown .ot-item .ot-id { font-weight: bold; color: #0d6efd; }
     .ot-dropdown .ot-item .ot-desc { color: #666; font-size: 12px; }
     .ot-dropdown .ot-empty { padding: 15px; text-align: center; color: #999; font-size: 13px; }
+
+    #tablaResultados { border-collapse: collapse; width: 100%; }
+    #tablaResultados thead th {
+        background: #ffffff !important;
+        color: #1e293b !important;
+        border: 1px solid #e2e8f0 !important;
+        font-size: 12px;
+        font-weight: 700;
+        padding: 10px 8px;
+        text-align: left;
+        white-space: nowrap;
+    }
+    #tablaResultados thead th .sort-icon { font-size: 10px; opacity: 0.45; margin-left: 4px; }
+    #tablaResultados tbody td {
+        border: 1px solid #e2e8f0;
+        font-size: 12.5px;
+        padding: 9px 8px;
+        color: #334155;
+        vertical-align: middle;
+        background: #ffffff;
+    }
+    #tablaResultados tbody tr:hover td { background: #f0f7ff; }
+    #tablaResultados tbody tr.row-subtotal td {
+        background: #cfe2ff !important;
+        border: 1px solid #b6d4fe;
+        font-size: 12.5px;
+        padding: 9px 8px;
+    }
+    #tablaResultados tbody tr.row-subtotal td:nth-child(7),
+    #tablaResultados tbody tr.row-subtotal td:nth-child(8) {
+        background: #d6eaff !important;
+        color: #0f172a;
+        font-weight: 700;
+    }
+    #tablaResultados tbody tr.row-grand-total td {
+        background: #0d6efd !important;
+        color: #ffffff !important;
+        border: 1px solid #0d6efd;
+        font-weight: 700;
+        font-size: 13px;
+        padding: 10px 8px;
+    }
+    #tablaResultados .col-check { width: 34px; text-align: center; }
+    #tablaResultados .col-check input { width: 15px; height: 15px; cursor: pointer; }
+    #tablaResultados td.text-end { text-align: right; }
 </style>
 @endsection
 
@@ -62,37 +107,21 @@
 <!-- RESULTADOS -->
 <div class="card card-custom p-0 overflow-hidden">
     <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0" id="tablaResultados">
-            <thead class="table-dark">
+        <table class="table table-hover align-middle mb-0" id="tablaResultados" style="margin-bottom:0;">
+            <thead>
                 <tr>
-                    <th class="ps-4">Id Orden</th>
-                    <th>Proyecto</th>
-                    <th>Nombre De La Obra</th>
-                    <th>Fecha</th>
-                    <th>Lugar</th>
-                    <th>Artículo</th>
-                    <th>Cantidad</th>
+                    <th class="col-check text-center"><input type="checkbox" id="checkAll" title="Seleccionar todo"></th>
+                    <th>ID ORDEN <span class="sort-icon">⇅</span></th>
+                    <th>PROYECTO <span class="sort-icon">⇅</span></th>
+                    <th>NOMBRE DE LA OBRA <span class="sort-icon">⇅</span></th>
+                    <th>FECHA <span class="sort-icon">⇅</span></th>
+                    <th>LUGAR <span class="sort-icon">⇅</span></th>
+                    <th>ARTICULO <span class="sort-icon">⇅</span></th>
+                    <th class="text-end">CANTIDAD <span class="sort-icon">⇅</span></th>
                 </tr>
             </thead>
             <tbody id="tbodyResultados">
-                @forelse($resultados as $row)
-                    <tr>
-                        <td class="ps-4 fw-bold text-primary">{{ $row->identificador }}</td>
-                        <td>{{ $row->proyecto }}</td>
-                        <td>{{ $row->obra }}</td>
-                        <td>{{ $row->fecha ? date('d/m/Y', strtotime($row->fecha)) : '-' }}</td>
-                        <td>{{ $row->lugar ?: '-' }}</td>
-                        <td class="fw-semibold">{{ $row->articulo ?: '-' }}</td>
-                        <td class="fw-bold text-primary">{{ number_format($row->cantidad, 2) }}</td>
-                    </tr>
-                @empty
-                    <tr id="rowEmpty">
-                        <td colspan="7" class="text-center py-5 text-muted">
-                            <i class="fa-solid fa-box-open fa-2x mb-3 text-warning"></i>
-                            <p class="mb-0">Use los filtros para buscar resultados.</p>
-                        </td>
-                    </tr>
-                @endforelse
+                @include('reportes.partials.tabla_pedido_materiales', ['resultados' => $resultados])
             </tbody>
         </table>
     </div>
@@ -187,5 +216,12 @@
         const params = new URLSearchParams(formData).toString();
         window.open('{{ route("reportes.exportar_pedido_materiales_pdf") }}?' + params, '_blank');
     }
+
+    // === CHECK ALL ===
+    document.addEventListener('change', function(e) {
+        if (e.target && e.target.id === 'checkAll') {
+            document.querySelectorAll('.row-check').forEach(cb => cb.checked = e.target.checked);
+        }
+    });
 </script>
 @endsection
