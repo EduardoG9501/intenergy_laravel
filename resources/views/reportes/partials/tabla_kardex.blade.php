@@ -10,6 +10,7 @@
             <th>Sub Tipo Movimiento</th>
             <th>Articulo</th>
             <th>Cantidad</th>
+            <th>Stock Actual</th>
             <th>#Documento</th>
         </tr>
     </thead>
@@ -29,10 +30,11 @@
             <td>{{ $row->sub_tipo_movimiento }}</td>
             <td class="fw-bold text-dark">{{ $row->articulo }}</td>
             <td class="fw-bold text-primary font-monospace">{{ number_format($row->cantidad, 2) }}</td>
+            <td class="fw-bold font-monospace {{ ($row->stock_actual ?? 0) > 0 ? 'text-success' : 'text-danger' }}">{{ number_format($row->stock_actual ?? 0, 2) }}</td>
             <td class="font-monospace small">#{{ $row->documento }}</td>
         </tr>
     @empty
-        <tr><td colspan="10" class="text-center py-4 text-muted">No se encontraron resultados.</td></tr>
+        <tr><td colspan="11" class="text-center py-4 text-muted">No se encontraron resultados.</td></tr>
     @endforelse
     </tbody>
 </table>

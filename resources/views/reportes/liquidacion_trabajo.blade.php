@@ -24,6 +24,14 @@
     .img-preview-wrapper:hover .img-preview-hover-liq { display: block; }
 
     .note-editor .note-toolbar { background-color: #f8f9fa; }
+
+    .ot-search-wrapper { position: relative; }
+    .ot-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 1050; background: white; border: 1px solid #dee2e6; border-radius: 0 0 6px 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 300px; overflow-y: auto; display: none; }
+    .ot-dropdown .ot-item { padding: 8px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #f0f0f0; }
+    .ot-dropdown .ot-item:hover { background-color: #f0f7ff; }
+    .ot-dropdown .ot-item .ot-id { font-weight: bold; color: #0d6efd; }
+    .ot-dropdown .ot-item .ot-desc { color: #666; font-size: 12px; }
+    .ot-dropdown .ot-empty { padding: 15px; text-align: center; color: #999; font-size: 13px; }
 </style>
 @endsection
 
@@ -48,14 +56,19 @@
         <div class="col-md-5">
             <label class="form-label fw-semibold">Orden de Trabajo:</label>
             <input type="hidden" name="id_orden" id="filtro_orden_id">
-            <div class="input-group">
-                <input type="text" class="form-control bg-white" id="filtro_orden_nombre" readonly placeholder="Todas las órdenes de trabajo" style="font-size:13px;">
-                <button type="button" class="btn btn-outline-primary" onclick="abrirModalOT()" title="Buscar orden de trabajo">
-                    <i class="fa-solid fa-magnifying-glass"></i>
-                </button>
-                <button type="button" class="btn btn-outline-danger" id="filtro_orden_clear" style="display:none;" onclick="limpiarOT()" title="Limpiar">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
+            <div class="ot-search-wrapper">
+                <div class="input-group">
+                    <input type="text" class="form-control" id="filtro_orden_nombre"
+                           placeholder="Escriba ID o nombre para buscar..."
+                           autocomplete="off" style="font-size:13px;">
+                    <button type="button" class="btn btn-outline-primary" title="Buscar">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-danger" id="filtro_orden_clear" style="display:none;" onclick="limpiarOT()" title="Limpiar">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="ot-dropdown" id="otDropdown"></div>
             </div>
         </div>
         <div class="col-md-7 d-flex gap-2 justify-content-end">
@@ -208,31 +221,6 @@
     </div>
 </div>
 
-<!-- MODAL BUSCAR OT -->
-<div class="modal fade" id="modalOT" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
-    <div class="modal-dialog modal-dialog-centered" style="z-index: 1060;">
-        <div class="modal-content border-0 shadow-lg" style="z-index: 1060;">
-            <div class="modal-header bg-primary text-white py-3">
-                <h5 class="fw-bold mb-0"><i class="fa-solid fa-clipboard-list me-2"></i> Seleccionar Orden de Trabajo</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-3">
-                <div class="input-group mb-3">
-                    <span class="input-group-text bg-white"><i class="fa-solid fa-search text-muted"></i></span>
-                    <input type="text" class="form-control" id="buscadorOT" placeholder="Escribe para buscar por ID, identificador, proyecto u obra..." oninput="buscarOT()" style="font-size: 13px;">
-                </div>
-                <div class="list-group" id="listaOT" style="max-height: 350px; overflow-y: auto;"></div>
-                <div id="sinResultadosOT" class="text-center text-muted py-4" style="display:none;">
-                    <i class="fa-solid fa-search fa-2x mb-2 text-warning"></i>
-                    <p class="mb-0">No se encontraron órdenes de trabajo</p>
-                </div>
-            </div>
-            <div class="modal-footer border-0 pt-0 pb-3">
-                <button type="button" class="btn btn-sm btn-outline-secondary px-3" data-bs-dismiss="modal">Cancelar</button>
-            </div>
-        </div>
-    </div>
-</div>
 @endsection
 
 @section('scripts')
@@ -269,51 +257,66 @@
         });
     });
 
-    // === BUSCAR OT ===
-    function abrirModalOT() {
-        document.getElementById('buscadorOT').value = '';
-        buscarOT();
-        new bootstrap.Modal(document.getElementById('modalOT')).show();
-        setTimeout(() => document.getElementById('buscadorOT').focus(), 400);
-    }
+    // === BÚSQUEDA DIRECTA OT (sin modal) ===
+    const inputOT = document.getElementById('filtro_orden_nombre');
+    const dropdownOT = document.getElementById('otDropdown');
+    const hiddenOT = document.getElementById('filtro_orden_id');
+    const clearOT = document.getElementById('filtro_orden_clear');
+    let debounceTimer = null;
 
-    function buscarOT() {
-        const q = document.getElementById('buscadorOT').value;
+    inputOT.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        const q = this.value.trim();
+        if (q.length < 1) { dropdownOT.style.display = 'none'; hiddenOT.value = ''; clearOT.style.display = 'none'; return; }
+        debounceTimer = setTimeout(() => fetchOT(q), 250);
+    });
+
+    inputOT.addEventListener('focus', function() {
+        if (this.value.trim().length >= 1) fetchOT(this.value.trim());
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.ot-search-wrapper')) dropdownOT.style.display = 'none';
+    });
+
+    function fetchOT(q) {
         fetch('{{ route("reportes.buscar_ordenes_trabajo") }}?' + new URLSearchParams({ q }), {
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
         })
         .then(r => r.json())
         .then(data => {
-            const lista = document.getElementById('listaOT');
-            const sinRes = document.getElementById('sinResultadosOT');
-            if (data.length === 0) { lista.innerHTML = ''; sinRes.style.display = ''; return; }
-            sinRes.style.display = 'none';
-            lista.innerHTML = data.map(ot =>
-                `<button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2"
-                    onclick="seleccionarOT(${ot.id_orden}, '${ot.identificador}', '${(ot.proyecto || '').replace(/'/g, "\\'")}', '${(ot.obra || '').replace(/'/g, "\\'")}')">
-                    <div><span class="fw-bold text-primary">${ot.identificador}</span> <small class="text-muted ms-2">${ot.proyecto || ''} - ${ot.obra || ''}</small></div>
-                    <i class="fa-solid fa-chevron-right text-muted small"></i>
-                </button>`
-            ).join('');
+            if (data.length === 0) {
+                dropdownOT.innerHTML = '<div class="ot-empty"><i class="fa-solid fa-search me-1"></i> Sin resultados</div>';
+            } else {
+                dropdownOT.innerHTML = data.map(ot =>
+                    `<div class="ot-item" onclick="seleccionarOT(${ot.id_orden}, '${ot.identificador}', '${(ot.proyecto||'').replace(/'/g,"\\'")}', '${(ot.obra||'').replace(/'/g,"\\'")}')">
+                        <span class="ot-id">${ot.identificador}</span>
+                        <span class="ot-desc ms-2">${ot.proyecto || ''} / ${ot.obra || ''}</span>
+                    </div>`
+                ).join('');
+            }
+            dropdownOT.style.display = 'block';
         });
     }
 
     function seleccionarOT(id, identificador, proyecto, obra) {
-        document.getElementById('filtro_orden_id').value = id;
-        document.getElementById('filtro_orden_nombre').value = `${identificador} — ${proyecto} / ${obra}`;
-        document.getElementById('filtro_orden_clear').style.display = '';
-        bootstrap.Modal.getInstance(document.getElementById('modalOT')).hide();
+        hiddenOT.value = id;
+        inputOT.value = identificador + ' — ' + proyecto + ' / ' + obra;
+        clearOT.style.display = '';
+        dropdownOT.style.display = 'none';
     }
 
     function limpiarOT() {
-        document.getElementById('filtro_orden_id').value = '';
-        document.getElementById('filtro_orden_nombre').value = '';
-        document.getElementById('filtro_orden_clear').style.display = 'none';
+        hiddenOT.value = '';
+        inputOT.value = '';
+        clearOT.style.display = 'none';
+        dropdownOT.style.display = 'none';
     }
 
     // === BÚSQUEDA AJAX ===
     document.getElementById('formFiltros').addEventListener('submit', function(e) {
         e.preventDefault();
+        dropdownOT.style.display = 'none';
         const formData = new FormData(this);
         const params = new URLSearchParams(formData).toString();
 
@@ -399,7 +402,6 @@
             if (r.success) {
                 input.value = '';
                 Swal.fire({ title: 'Subido', text: r.mensaje, icon: 'success', timer: 1500, showConfirmButton: false });
-                // Recargar imágenes
                 document.getElementById('formFiltros').dispatchEvent(new Event('submit'));
             } else {
                 Swal.fire('Error', r.mensaje, 'error');

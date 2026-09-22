@@ -22,42 +22,8 @@ class ReporteController extends Controller
     public function kardex(Request $request)
     {
         if ($request->ajax() || $request->has('buscar')) {
-            $query = DB::table('stock_productos as sp')
-                ->join('bodegas as bop', 'sp.id_bodega_principal', '=', 'bop.id_bodega')
-                ->leftJoin('solicitud_materiales as sm', 'sp.no_documento', '=', DB::raw("CONCAT('SOL-', sm.id_solicitud_material)"))
-                ->leftJoin('ejecucion_obra as eo', function($join) {
-                    $join->on('eo.id_ejecucion_obra', '=', DB::raw("CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(sp.no_documento, '-BOD-', 1), 'EJEC-', -1) AS UNSIGNED)"))
-                         ->where('sp.no_documento', 'LIKE', 'EJEC-%-BOD-%');
-                })
-                ->leftJoin('ordenes_trabajo as ot', 'ot.id_orden', '=', DB::raw("COALESCE(sm.id_orden, eo.id_orden)"))
-                ->leftJoin('proyecto as p', 'ot.id_proyecto', '=', 'p.id')
-                ->leftJoin('obra as ob', 'ot.id_obra', '=', 'ob.id')
-                ->leftJoin('articulos as a', 'sp.id_producto', '=', 'a.id_producto')
-                ->where('sp.estado', 1)
-                ->select(
-                    DB::raw("COALESCE(ot.identificador, sp.no_documento) AS id_orden"),
-                    'p.nombre as proyecto',
-                    'ob.nombre as nombre_obra',
-                    'bop.nombreBodega as lugar',
-                    'sp.fecha_captura as fecha',
-                    'sp.tipo_movimiento',
-                    'sp.sub_tipo_movimiento',
-                    'sp.producto as articulo',
-                    'sp.cantidad',
-                    'sp.no_documento as documento'
-                );
-
-            if ($request->filled('id_bodega')) {
-                $query->where('sp.id_bodega_principal', $request->id_bodega);
-            }
-            if ($request->filled('id_producto')) {
-                $query->where('sp.id_producto', $request->id_producto);
-            }
-            if ($request->filled('id_orden')) {
-                $query->where('ot.id_orden', $request->id_orden);
-            }
-
-            $resultados = $query->orderBy('sp.fecha_captura', 'desc')->paginate(50);
+            $query = $this->getKardexQuery($request);
+            $resultados = $this->applyKardexFilters($query, $request)->paginate(50);
 
             if ($request->ajax()) {
                 return response()->json([
@@ -93,6 +59,7 @@ class ReporteController extends Controller
                 'sp.sub_tipo_movimiento',
                 'sp.producto as articulo',
                 'sp.cantidad',
+                DB::raw("COALESCE((SELECT SUM(sb.cantidad) FROM stock_productos_bodega sb WHERE sb.id_producto = sp.id_producto AND sb.id_bodega_principal = sp.id_bodega_principal AND sb.estado = 1), 0) AS stock_actual"),
                 'sp.no_documento as documento'
             );
     }
@@ -119,36 +86,40 @@ class ReporteController extends Controller
 
         $html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="UTF-8">
-<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Kardex</x:Name></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Kardex</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
 <style>
     body { font-family: Arial, sans-serif; font-size: 11px; }
-    h2 { text-align: center; font-size: 16px; }
+    h2 { text-align: center; font-size: 16px; margin: 8px 0; }
     .info { text-align: center; color: #666; font-size: 10px; margin-bottom: 10px; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th { background: #2c3e50; color: white; padding: 6px 4px; text-align: left; font-size: 10px; }
-    td { padding: 5px 4px; border-bottom: 1px solid #ddd; font-size: 10px; }
-    tr:nth-child(even) { background: #f5f5f5; }
-    .badge-ent { background: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 9px; }
-    .badge-sal { background: #dc3545; color: white; padding: 2px 6px; border-radius: 3px; font-size: 9px; }
+    th { background: #0d6efd; color: white; padding: 7px 5px; text-align: center; font-size: 10px; font-weight: bold; border: 1px solid #0d6efd; }
+    td { padding: 6px 5px; border-bottom: 1px solid #dee2e6; font-size: 10px; text-align: center; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    .badge-ent { background: #22c55e; color: white; padding: 2px 8px; font-size: 9px; font-weight: bold; }
+    .badge-sal { background: #ef4444; color: white; padding: 2px 8px; font-size: 9px; font-weight: bold; }
+    .stock-pos { color: #16a34a; font-weight: bold; }
+    .stock-neg { color: #dc2626; font-weight: bold; }
 </style></head><body>
 <h2>Entrada / Salida (Kardex)</h2>
 <div class="info">Generado: ' . date('d/m/Y H:i') . ' | Total: ' . $resultados->count() . ' registro(s)</div>
 <table>
-<thead><tr><th>Id Orden</th><th>Proyecto</th><th>Nombre De La Obra</th><th>Lugar</th><th>Fecha</th><th>Tipo Movimiento</th><th>Sub Tipo Movimiento</th><th>Articulo</th><th>Cantidad</th><th>Nº Documento</th></tr></thead>
+<thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>LUGAR</th><th>FECHA</th><th>TIPO MOVIMIENTO</th><th>SUB TIPO MOVIMIENTO</th><th>ARTICULO</th><th>CANTIDAD</th><th>STOCK ACTUAL</th><th>Nº DOCUMENTO</th></tr></thead>
 <tbody>';
 
         foreach ($resultados as $r) {
             $badgeClass = $r->tipo_movimiento === 'ENTRADA' ? 'badge-ent' : 'badge-sal';
+            $stockActual = $r->stock_actual ?? 0;
             $html .= '<tr>
                 <td>' . $r->id_orden . '</td>
                 <td>' . ($r->proyecto ?: '-') . '</td>
                 <td>' . ($r->nombre_obra ?: '-') . '</td>
                 <td>' . ($r->lugar ?: '-') . '</td>
-                <td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '-') . '</td>
+                <td>' . ($r->fecha ? date('Y-m-d', strtotime($r->fecha)) : '-') . '</td>
                 <td><span class="' . $badgeClass . '">' . $r->tipo_movimiento . '</span></td>
                 <td>' . ($r->sub_tipo_movimiento ?: '-') . '</td>
                 <td>' . $r->articulo . '</td>
                 <td>' . number_format($r->cantidad, 2) . '</td>
+                <td class="' . ($stockActual > 0 ? 'stock-pos' : 'stock-neg') . '">' . number_format($stockActual, 2) . '</td>
                 <td>' . $r->documento . '</td>
             </tr>';
         }
@@ -159,6 +130,7 @@ class ReporteController extends Controller
             'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename="kardex_' . date('Y-m-d') . '.xls"',
             'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
             'Expires' => '0',
         ];
 
@@ -178,19 +150,43 @@ class ReporteController extends Controller
 <title>Entrada / Salida (Kardex)</title>
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #333; padding: 15px; }
-    .header { display: flex; align-items: flex-start; gap: 20px; margin-bottom: 15px; }
-    .header-logo { flex-shrink: 0; margin-top: 5px; }
-    .header-text h1 { font-size: 26px; font-weight: bold; color: #1a1a2e; letter-spacing: 0.5px; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #1e293b; padding: 25px 30px; background: #f1f5f9; }
+    .no-print { position: fixed; top: 18px; right: 18px; z-index: 100; display: flex; gap: 8px; align-items: center; }
+    .btn-print, .btn-zoom { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #0d6efd; color: #fff; border: none; padding: 10px 16px; font-size: 14px; font-weight: 600; border-radius: 6px; cursor: pointer; box-shadow: 0 3px 10px rgba(13,110,253,0.35); }
+    .btn-print:hover, .btn-zoom:hover { background: #0b5ed7; }
+    .btn-zoom { width: 42px; height: 42px; font-size: 20px; padding: 0; }
+    .zoom-label { background: #0f172a; color: #fff; font-size: 12px; font-weight: 700; padding: 8px 10px; border-radius: 6px; min-width: 52px; text-align: center; }
+    .btn-print svg { width: 18px; height: 18px; fill: #fff; }
+    #reportRoot { transform-origin: top left; transition: transform 0.15s ease; background: #fff; padding: 25px 30px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+    .header { display: flex; align-items: center; gap: 30px; margin-bottom: 25px; }
+    .header-logo { flex-shrink: 0; }
+    .header-text { flex-grow: 1; text-align: center; }
+    .header-text h1 { font-size: 30px; font-weight: bold; color: #0f172a; letter-spacing: 0.3px; text-align: center; }
     table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-    th { background: #1a3a5c; color: white; padding: 10px 6px; text-align: center; font-size: 10px; font-weight: bold; border: 1px solid #1a3a5c; }
-    td { padding: 7px 6px; border-bottom: 1px solid #dee2e6; font-size: 9px; text-align: center; }
-    tr:nth-child(even) { background: #f5f7fa; }
-    .badge-ent { background: #28a745; color: white; padding: 4px 10px; border-radius: 3px; font-size: 9px; font-weight: bold; }
-    .badge-sal { background: #dc3545; color: white; padding: 4px 10px; border-radius: 3px; font-size: 9px; font-weight: bold; }
+    th { background: #0d6efd; color: white; padding: 11px 8px; text-align: center; font-size: 12px; font-weight: bold; border: 1px solid #0d6efd; }
+    td { padding: 9px 8px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: center; color: #334155; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    .badge-ent { background: #22c55e; color: white; padding: 3px 10px; font-size: 11px; font-weight: bold; display: inline-block; }
+    .badge-sal { background: #ef4444; color: white; padding: 3px 10px; font-size: 11px; font-weight: bold; display: inline-block; }
+    .stock-pos { color: #16a34a; font-weight: 700; }
+    .stock-neg { color: #dc2626; font-weight: 700; }
     .footer { margin-top: 25px; text-align: center; font-size: 9px; color: #aaa; border-top: 1px solid #e0e0e0; padding-top: 12px; }
-    @media print { body { padding: 10px; } }
+    @media print {
+        body { background: #fff; padding: 12px; }
+        .no-print { display: none !important; }
+        #reportRoot { transform: none !important; box-shadow: none; padding: 0; background: #fff; }
+    }
 </style></head><body>
+<div class="no-print">
+    <button type="button" class="btn-zoom" onclick="changeZoom(-0.1)" title="Reducir">−</button>
+    <span class="zoom-label" id="zoomLabel">100%</span>
+    <button type="button" class="btn-zoom" onclick="changeZoom(0.1)" title="Agrandar">+</button>
+    <button type="button" class="btn-print" onclick="window.print()">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>
+        Imprimir
+    </button>
+</div>
+<div id="reportRoot">
 <div class="header">
     <div class="header-logo">' . $logoSvg . '</div>
     <div class="header-text">
@@ -198,28 +194,38 @@ class ReporteController extends Controller
     </div>
 </div>
 <table>
-<thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>LUGAR</th><th>FECHA</th><th>TIPO MOVIMIENTO</th><th>SUB TIPO</th><th>ARTICULO</th><th>CANTIDAD</th><th>Nº DOCUMENTO</th></tr></thead>
+<thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>LUGAR</th><th>FECHA</th><th>TIPO MOVIMIENTO</th><th>SUB TIPO</th><th>ARTICULO</th><th>CANTIDAD</th><th>STOCK ACTUAL</th><th>Nº DOCUMENTO</th></tr></thead>
 <tbody>';
 
         foreach ($resultados as $r) {
             $badgeClass = $r->tipo_movimiento === 'ENTRADA' ? 'badge-ent' : 'badge-sal';
+            $stockActual = $r->stock_actual ?? 0;
             $html .= '<tr>
                 <td>' . $r->id_orden . '</td>
                 <td>' . ($r->proyecto ?: '-') . '</td>
                 <td>' . ($r->nombre_obra ?: '-') . '</td>
                 <td>' . ($r->lugar ?: '-') . '</td>
-                <td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '-') . '</td>
+                <td>' . ($r->fecha ? date('Y-m-d', strtotime($r->fecha)) : '-') . '</td>
                 <td><span class="' . $badgeClass . '">' . $r->tipo_movimiento . '</span></td>
                 <td>' . ($r->sub_tipo_movimiento ?: '-') . '</td>
                 <td>' . $r->articulo . '</td>
                 <td><strong>' . number_format($r->cantidad, 2) . '</strong></td>
+                <td class="' . ($stockActual > 0 ? 'stock-pos' : 'stock-neg') . '">' . number_format($stockActual, 2) . '</td>
                 <td>' . $r->documento . '</td>
             </tr>';
         }
 
         $html .= '</tbody></table>
 <div class="footer">Generado: ' . date('d/m/Y H:i') . ' | Total: ' . $resultados->count() . ' registro(s) | INTENERGY</div>
-<script>window.onload = function() { window.print(); }</script>
+</div>
+<script>
+var currentZoom = 1;
+function changeZoom(delta) {
+    currentZoom = Math.min(3, Math.max(0.5, Math.round((currentZoom + delta) * 10) / 10));
+    document.getElementById("reportRoot").style.transform = "scale(" + currentZoom + ")";
+    document.getElementById("zoomLabel").textContent = Math.round(currentZoom * 100) + "%";
+}
+</script>
 </body></html>';
 
         return response($html)->header('Content-Type', 'text/html');
@@ -1457,164 +1463,46 @@ class ReporteController extends Controller
     // Exportar Liquidación a Excel (HTML con imágenes embebidas)
     public function exportarLiquidacionTrabajo(Request $request)
     {
-        $materiales = $this->getLiqMateriales($request);
+        $materiales = $this->getLiqMateriales($request)->sortBy('articulo')->values();
         $horas = $this->getLiqHoras($request);
         $informes = $this->getLiqInformes($request);
-        $imagenes = $this->getEjecucionInformesImagenes($request);
         $liquidacion = $this->getOrCreateLiquidacion($request);
-        $liquidacionImagenes = $liquidacion ? $liquidacion->imagenes()->where('estado', 1)->get() : collect();
+
+        // Agrupar materiales por artículo
+        $agrupados = [];
+        $totalesMat = [];
+        $granTotalMat = 0;
+        foreach ($materiales as $row) {
+            $articulo = $row->articulo ?: 'Sin artículo';
+            if (!isset($agrupados[$articulo])) {
+                $agrupados[$articulo] = [];
+                $totalesMat[$articulo] = 0;
+            }
+            $agrupados[$articulo][] = $row;
+            $totalesMat[$articulo] += $row->cantidad;
+            $granTotalMat += $row->cantidad;
+        }
 
         $html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="UTF-8">
-<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Liquidación</x:Name></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Liquidacion</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
 <style>
     body { font-family: Arial, sans-serif; font-size: 11px; }
-    h2 { text-align: center; font-size: 16px; }
-    h3 { font-size: 13px; color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 3px; margin-top: 20px; }
+    h2 { text-align: center; font-size: 16px; margin: 8px 0; }
+    h3 { font-size: 13px; color: #0f172a; border-bottom: 2px solid #0d6efd; padding-bottom: 3px; margin-top: 22px; text-transform: uppercase; }
     .info { text-align: center; color: #666; font-size: 10px; margin-bottom: 10px; }
     .text-section { background: #f8f9fa; padding: 8px; border: 1px solid #ddd; white-space: pre-wrap; margin-bottom: 10px; }
     table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-    th { background: #2c3e50; color: white; padding: 6px 4px; text-align: left; font-size: 10px; }
-    td { padding: 5px 4px; border-bottom: 1px solid #ddd; font-size: 10px; }
-    tr:nth-child(even) { background: #f5f5f5; }
-    .badge-si { background: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 9px; }
-    .badge-no { background: #ffc107; color: #333; padding: 2px 6px; border-radius: 3px; font-size: 9px; }
-    .imgs-grid { display: flex; flex-wrap: wrap; gap: 4px; }
-    .imgs-grid img { width: 50px; height: 50px; object-fit: cover; border: 1px solid #ccc; }
-    .liq-imgs img { width: 60px; height: 60px; object-fit: cover; border: 1px solid #ccc; margin: 2px; }
+    th { background: #0d6efd; color: white; padding: 7px 5px; text-align: center; font-size: 10px; font-weight: bold; border: 1px solid #0d6efd; }
+    td { padding: 6px 5px; border-bottom: 1px solid #dee2e6; font-size: 10px; text-align: center; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    .row-subtotal td { background: #d6eaff !important; font-weight: bold; border-top: 2px solid #0d6efd; border-left: 3px solid #0d6efd; }
+    .row-grand-total td { background: #0d6efd !important; color: white; font-weight: bold; }
+    .badge-si { background: #22c55e; color: white; padding: 2px 8px; }
+    .badge-no { background: #eab308; color: #1e293b; padding: 2px 8px; }
 </style></head><body>
-<h2>Liquidación de Trabajo</h2>
+<h2>Liquidacion de Trabajo</h2>
 <div class="info">Generado: ' . date('d/m/Y H:i') . '</div>';
-
-        // Mano de Obra
-        $html .= '<h3>Mano de Obra</h3>';
-        $html .= '<div class="text-section">' . ($liquidacion->mano_obra ? strip_tags($liquidacion->mano_obra) : '-') . '</div>';
-
-        // Importante
-        $html .= '<h3>Importante</h3>';
-        $html .= '<div class="text-section">' . ($liquidacion->importante ? strip_tags($liquidacion->importante) : '-') . '</div>';
-
-        // Imágenes Adjuntas de Liquidación
-        if ($liquidacionImagenes->count() > 0) {
-            $html .= '<h3>Imágenes Adjuntas (' . $liquidacionImagenes->count() . ')</h3><div class="liq-imgs">';
-            foreach ($liquidacionImagenes as $img) {
-                // ruta ya contiene el base64 data URI completo
-                $html .= '<img src="' . $img->ruta . '" alt="' . htmlspecialchars($img->nombre) . '">';
-            }
-            $html .= '</div>';
-        }
-
-        // Materiales
-        $html .= '<h3>Materiales a Utilizar (' . $materiales->count() . ' registros)</h3>';
-        $html .= '<table><thead><tr><th>Id Orden</th><th>Proyecto</th><th>Nombre De La Obra</th><th>Fecha</th><th>Lugar</th><th>Articulo</th><th>Cantidad</th><th>Contabilizado</th></tr></thead><tbody>';
-        foreach ($materiales as $r) {
-            $html .= '<tr>
-                <td>' . $r->identificador . '</td>
-                <td>' . $r->proyecto . '</td>
-                <td>' . $r->obra . '</td>
-                <td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '-') . '</td>
-                <td>' . ($r->lugar ?: '-') . '</td>
-                <td>' . ($r->articulo ?: '-') . '</td>
-                <td>' . number_format($r->cantidad, 2) . '</td>
-                <td><span class="' . ($r->Contabilizado ? 'badge-si' : 'badge-no') . '">' . ($r->Contabilizado ? 'Sí' : 'No') . '</span></td>
-            </tr>';
-        }
-        $html .= '</tbody></table>';
-
-        // Horas
-        $html .= '<h3>Horas de Trabajo (' . $horas->count() . ' registros)</h3>';
-        $html .= '<table><thead><tr><th>Id Orden</th><th>Proyecto</th><th>Nombre De La Obra</th><th>Fecha</th><th>Lugar</th><th>Empleado</th><th>H.Entrada</th><th>H.Salida</th><th>H.Normal</th><th>H.Extras</th><th>H.Extraordinarias</th></tr></thead><tbody>';
-        foreach ($horas as $r) {
-            $html .= '<tr>
-                <td>' . $r->identificador . '</td>
-                <td>' . $r->proyecto . '</td>
-                <td>' . $r->obra . '</td>
-                <td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '-') . '</td>
-                <td>' . ($r->lugar ?: '-') . '</td>
-                <td>' . $r->empleado . '</td>
-                <td>' . $r->hora_entrada . '</td>
-                <td>' . $r->hora_salida . '</td>
-                <td>' . $r->cantidad_horas_normal . '</td>
-                <td>' . $r->cantidad_horas_extra . '</td>
-                <td>' . $r->cantidad_horas_extraordinaria . '</td>
-            </tr>';
-        }
-        $html .= '</tbody></table>';
-
-        // Informes Diarios
-        $html .= '<h3>Informes Diarios (' . $informes->count() . ' registros)</h3>';
-        $html .= '<table><thead><tr><th>Id Informe</th><th>Nombre De La Obra</th><th>Fecha</th><th>Lugar</th><th>Ubicación</th><th>Observación</th><th>Imágenes</th></tr></thead><tbody>';
-        foreach ($informes as $r) {
-            $imgs = $imagenes->get($r->id_informe_diario_ejecucion, collect());
-            $imgsHtml = '';
-            foreach ($imgs as $img) {
-                $imgsHtml .= '<img src="' . $img->ruta_imagen . '" style="width:40px;height:40px;object-fit:cover;border:1px solid #ccc;margin:1px;">';
-            }
-            $html .= '<tr>
-                <td>' . $r->id_informe_diario_ejecucion . '</td>
-                <td>' . $r->obra . '</td>
-                <td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '-') . '</td>
-                <td>' . ($r->lugar ?: '-') . '</td>
-                <td>' . ($r->ubicacion ?: '-') . '</td>
-                <td>' . ($r->observacion ?: '-') . '</td>
-                <td class="imgs-grid">' . ($imgsHtml ?: '-') . '</td>
-            </tr>';
-        }
-        $html .= '</tbody></table>';
-
-        $html .= '</body></html>';
-
-        $headers = [
-            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="liquidacion_trabajo_' . date('Y-m-d') . '.xls"',
-            'Pragma' => 'no-cache',
-            'Expires' => '0',
-        ];
-
-        return response($html, 200, $headers);
-    }
-
-    // Exportar Liquidación a PDF (vista HTML imprimible)
-    public function exportarLiquidacionTrabajoPdf(Request $request)
-    {
-        $materiales = $this->getLiqMateriales($request);
-        $horas = $this->getLiqHoras($request);
-        $informes = $this->getLiqInformes($request);
-        $imagenes = $this->getEjecucionInformesImagenes($request);
-        $liquidacion = $this->getOrCreateLiquidacion($request);
-        $liquidacionImagenes = $liquidacion ? $liquidacion->imagenes()->where('estado', 1)->get() : collect();
-
-        $logoSvg = $this->getLogoSvg();
-
-        $html = '<!DOCTYPE html>
-<html><head><meta charset="UTF-8">
-<title>Liquidación de Trabajo</title>
-<style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #333; padding: 15px; }
-    .header { display: flex; align-items: flex-start; gap: 20px; margin-bottom: 15px; }
-    .header-logo { flex-shrink: 0; margin-top: 5px; }
-    .header-text h1 { font-size: 26px; font-weight: bold; color: #1a1a2e; letter-spacing: 0.5px; }
-    h3 { margin: 18px 0 6px; font-size: 13px; color: #1a3a5c; border-bottom: 2px solid #1a3a5c; padding-bottom: 4px; font-weight: bold; }
-    table { width: 100%; border-collapse: collapse; margin-top: 8px; margin-bottom: 15px; }
-    th { background: #1a3a5c; color: white; padding: 8px 5px; text-align: center; font-size: 9px; font-weight: bold; border: 1px solid #1a3a5c; }
-    td { padding: 6px 5px; border-bottom: 1px solid #dee2e6; font-size: 9px; text-align: center; }
-    tr:nth-child(even) { background: #f5f7fa; }
-    .text-section { background: #f8f9fa; border: 1px solid #dee2e6; padding: 12px 15px; margin-bottom: 15px; white-space: pre-wrap; font-size: 11px; line-height: 1.5; }
-    .badge { padding: 3px 8px; border-radius: 3px; font-size: 8px; font-weight: bold; }
-    .badge-si { background: #28a745; color: white; }
-    .badge-no { background: #ffc107; color: #333; }
-    .imgs-grid { display: flex; flex-wrap: wrap; gap: 5px; }
-    .imgs-grid img { width: 45px; height: 45px; object-fit: cover; border-radius: 3px; border: 1px solid #ccc; }
-    .footer { margin-top: 25px; text-align: center; font-size: 9px; color: #aaa; border-top: 1px solid #e0e0e0; padding-top: 12px; }
-    @media print { body { padding: 10px; } }
-</style></head><body>
-<div class="header">
-    <div class="header-logo">' . $logoSvg . '</div>
-    <div class="header-text">
-        <h1>Liquidación de Trabajo</h1>
-    </div>
-</div>';
 
         // Mano de Obra
         $html .= '<h3>Mano de Obra</h3>';
@@ -1624,30 +1512,34 @@ class ReporteController extends Controller
         $html .= '<h3>Importante</h3>';
         $html .= '<div class="text-section">' . ($liquidacion && $liquidacion->importante ? strip_tags($liquidacion->importante) : '-') . '</div>';
 
-        // Imágenes Adjuntas de Liquidación
-        if ($liquidacionImagenes->count() > 0) {
-            $html .= '<h3>Imágenes Adjuntas (' . $liquidacionImagenes->count() . ')</h3><div class="imgs-grid">';
-            foreach ($liquidacionImagenes as $img) {
-                $html .= '<img src="' . $img->ruta . '">';
-            }
-            $html .= '</div>';
-        }
-
-        // Materiales
+        // Materiales agrupados
         $html .= '<h3>Materiales a Utilizar (' . $materiales->count() . ' registros)</h3>';
-        $html .= '<table><thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>ARTICULO</th><th>CANTIDAD</th><th>CONTAB.</th></tr></thead><tbody>';
-        foreach ($materiales as $r) {
-            $html .= '<tr>
-                <td>' . $r->identificador . '</td>
-                <td>' . $r->proyecto . '</td>
-                <td>' . $r->obra . '</td>
-                <td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '-') . '</td>
-                <td>' . ($r->lugar ?: '-') . '</td>
-                <td>' . ($r->articulo ?: '-') . '</td>
-                <td><strong>' . number_format($r->cantidad, 2) . '</strong></td>
-                <td><span class="badge ' . ($r->Contabilizado ? 'badge-si' : 'badge-no') . '">' . ($r->Contabilizado ? 'Sí' : 'No') . '</span></td>
+        $html .= '<table><thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>ARTICULO</th><th>CANTIDAD</th><th>CONTABILIZADO</th></tr></thead><tbody>';
+        foreach ($agrupados as $articulo => $items) {
+            foreach ($items as $r) {
+                $html .= '<tr>
+                    <td>' . $r->identificador . '</td>
+                    <td>' . $r->proyecto . '</td>
+                    <td>' . $r->obra . '</td>
+                    <td>' . ($r->fecha ? date('Y-m-d', strtotime($r->fecha)) : '-') . '</td>
+                    <td>' . ($r->lugar ?: '-') . '</td>
+                    <td>' . ($r->articulo ?: '-') . '</td>
+                    <td>' . number_format($r->cantidad, 2) . '</td>
+                    <td><span class="' . ($r->Contabilizado ? 'badge-si' : 'badge-no') . '">' . ($r->Contabilizado ? 'SI' : 'NO') . '</span></td>
+                </tr>';
+            }
+            $html .= '<tr class="row-subtotal">
+                <td colspan="5"></td>
+                <td style="text-align:right;">Subtotal ' . strtoupper($articulo) . ':</td>
+                <td>' . number_format($totalesMat[$articulo], 2) . '</td>
+                <td></td>
             </tr>';
         }
+        $html .= '<tr class="row-grand-total">
+            <td colspan="6" style="text-align:right;">TOTALES GENERALES:</td>
+            <td>' . number_format($granTotalMat, 2) . '</td>
+            <td></td>
+        </tr>';
         $html .= '</tbody></table>';
 
         // Horas
@@ -1658,7 +1550,7 @@ class ReporteController extends Controller
                 <td>' . $r->identificador . '</td>
                 <td>' . $r->proyecto . '</td>
                 <td>' . $r->obra . '</td>
-                <td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '-') . '</td>
+                <td>' . ($r->fecha ? date('Y-m-d', strtotime($r->fecha)) : '-') . '</td>
                 <td>' . ($r->lugar ?: '-') . '</td>
                 <td>' . $r->empleado . '</td>
                 <td>' . $r->hora_entrada . '</td>
@@ -1677,7 +1569,7 @@ class ReporteController extends Controller
             $html .= '<tr>
                 <td>' . $r->id_informe_diario_ejecucion . '</td>
                 <td>' . $r->obra . '</td>
-                <td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '-') . '</td>
+                <td>' . ($r->fecha ? date('Y-m-d', strtotime($r->fecha)) : '-') . '</td>
                 <td>' . ($r->lugar ?: '-') . '</td>
                 <td>' . ($r->ubicacion ?: '-') . '</td>
                 <td>' . ($r->observacion ?: '-') . '</td>
@@ -1685,8 +1577,167 @@ class ReporteController extends Controller
         }
         $html .= '</tbody></table>';
 
+        $html .= '</body></html>';
+
+        $headers = [
+            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="liquidacion_trabajo_' . date('Y-m-d') . '.xls"',
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        return response($html, 200, $headers);
+    }
+
+    // Exportar Liquidación a PDF (vista HTML imprimible)
+    public function exportarLiquidacionTrabajoPdf(Request $request)
+    {
+        $materiales = $this->getLiqMateriales($request)->sortBy('articulo')->values();
+        $horas = $this->getLiqHoras($request);
+        $informes = $this->getLiqInformes($request);
+        $liquidacion = $this->getOrCreateLiquidacion($request);
+        $liquidacionImagenes = $liquidacion ? $liquidacion->imagenes()->where('estado', 1)->get() : collect();
+
+        $agrupados = [];
+        $totalesMat = [];
+        $granTotalMat = 0;
+        foreach ($materiales as $row) {
+            $articulo = $row->articulo ?: 'Sin artículo';
+            if (!isset($agrupados[$articulo])) {
+                $agrupados[$articulo] = [];
+                $totalesMat[$articulo] = 0;
+            }
+            $agrupados[$articulo][] = $row;
+            $totalesMat[$articulo] += $row->cantidad;
+            $granTotalMat += $row->cantidad;
+        }
+
+        $logoSvg = $this->getLogoSvg();
+
+        $html = '<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>Liquidación de Trabajo</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #1e293b; padding: 25px 30px; }
+    .no-print { position: fixed; top: 18px; right: 18px; z-index: 100; }
+    .btn-print { display: inline-flex; align-items: center; gap: 8px; background: #0d6efd; color: #fff; border: none; padding: 10px 22px; font-size: 14px; font-weight: 600; border-radius: 6px; cursor: pointer; box-shadow: 0 3px 10px rgba(13,110,253,0.35); }
+    .btn-print:hover { background: #0b5ed7; }
+    .btn-print svg { width: 18px; height: 18px; fill: #fff; }
+    .header { display: flex; align-items: center; gap: 30px; margin-bottom: 25px; }
+    .header-logo { flex-shrink: 0; }
+    .header-text { flex-grow: 1; text-align: center; }
+    .header-text h1 { font-size: 30px; font-weight: bold; color: #0f172a; letter-spacing: 0.3px; text-align: center; }
+    h3.section-title { margin: 22px 0 8px; font-size: 16px; color: #0f172a; text-transform: uppercase; font-weight: bold; display: inline-block; border-bottom: 3px solid #0d6efd; padding-bottom: 4px; letter-spacing: 0.5px; }
+    .text-section { background: #f8f9fa; border: 1px solid #dee2e6; padding: 12px 15px; margin-bottom: 15px; white-space: pre-wrap; font-size: 13px; line-height: 1.5; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; margin-bottom: 6px; }
+    th { background: #0d6efd; color: white; padding: 11px 10px; font-size: 13px; font-weight: bold; text-align: center; border: 1px solid #0d6efd; }
+    td { padding: 10px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: center; color: #334155; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    .row-subtotal td { background: #d6eaff !important; font-weight: 700; color: #0f172a; border-left: 3px solid #0d6efd; border-top: 1px solid #b6d4fe; }
+    .row-subtotal td.sub-label { text-align: right; }
+    .row-grand-total td { background: #0d6efd !important; color: #ffffff !important; font-weight: 700; border: none; }
+    .row-grand-total td.sub-label { text-align: right; }
+    .badge { padding: 3px 10px; border-radius: 3px; font-size: 11px; font-weight: bold; display: inline-block; }
+    .badge-si { background: #22c55e; color: #fff; }
+    .badge-no { background: #eab308; color: #1e293b; }
+    .imgs-grid { display: flex; flex-wrap: wrap; gap: 5px; }
+    .imgs-grid img { width: 45px; height: 45px; object-fit: cover; border-radius: 3px; border: 1px solid #ccc; }
+    .footer { margin-top: 25px; text-align: center; font-size: 9px; color: #aaa; border-top: 1px solid #e0e0e0; padding-top: 12px; }
+    @media print { body { padding: 12px; } .no-print { display: none !important; } }
+</style></head><body>
+<div class="no-print">
+    <button type="button" class="btn-print" onclick="window.print()">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>
+        Imprimir
+    </button>
+</div>
+<div class="header">
+    <div class="header-logo">' . $logoSvg . '</div>
+    <div class="header-text">
+        <h1>Liquidación de Trabajo</h1>
+    </div>
+</div>';
+
+        // Mano de Obra
+        $html .= '<h3 class="section-title">Mano de Obra</h3>';
+        $html .= '<div class="text-section">' . ($liquidacion && $liquidacion->mano_obra ? strip_tags($liquidacion->mano_obra) : '-') . '</div>';
+
+        // Importante
+        $html .= '<h3 class="section-title">Importante</h3>';
+        $html .= '<div class="text-section">' . ($liquidacion && $liquidacion->importante ? strip_tags($liquidacion->importante) : '-') . '</div>';
+
+        // Imágenes Adjuntas de Liquidación
+        if ($liquidacionImagenes->count() > 0) {
+            $html .= '<h3 class="section-title">Imágenes Adjuntas (' . $liquidacionImagenes->count() . ')</h3><div class="imgs-grid">';
+            foreach ($liquidacionImagenes as $img) {
+                $html .= '<img src="' . $img->ruta . '">';
+            }
+            $html .= '</div>';
+        }
+
+        // Materiales agrupados
+        $html .= '<h3 class="section-title">Materiales a Utilizar (' . $materiales->count() . ' registros)</h3>';
+        $html .= '<table><thead><tr><th>FECHA</th><th>LUGAR</th><th>ARTICULO</th><th>CANTIDAD</th><th>CONTABILIZADO</th></tr></thead><tbody>';
+        foreach ($agrupados as $articulo => $items) {
+            foreach ($items as $r) {
+                $html .= '<tr>
+                    <td>' . ($r->fecha ? date('Y-m-d', strtotime($r->fecha)) : '-') . '</td>
+                    <td>' . e($r->lugar ?: '-') . '</td>
+                    <td>' . e($r->articulo ?: '-') . '</td>
+                    <td><strong>' . number_format($r->cantidad, 2) . '</strong></td>
+                    <td><span class="badge ' . ($r->Contabilizado ? 'badge-si' : 'badge-no') . '">' . ($r->Contabilizado ? 'SI' : 'NO') . '</span></td>
+                </tr>';
+            }
+            $html .= '<tr class="row-subtotal">
+                <td></td>
+                <td></td>
+                <td class="sub-label">Subtotal ' . e($articulo) . '</td>
+                <td>' . number_format($totalesMat[$articulo], 2) . '</td>
+                <td></td>
+            </tr>';
+        }
+        $html .= '<tr class="row-grand-total">
+            <td colspan="3" class="sub-label">TOTALES GENERALES:</td>
+            <td>' . number_format($granTotalMat, 2) . '</td>
+            <td></td>
+        </tr>';
+        $html .= '</tbody></table>';
+
+        // Horas
+        $html .= '<h3 class="section-title">Horas de Trabajo (' . $horas->count() . ' registros)</h3>';
+        $html .= '<table><thead><tr><th>FECHA</th><th>LUGAR</th><th>EMPLEADO</th><th>H.ENTRADA</th><th>H.SALIDA</th><th>H.NORMAL</th><th>H.EXTRAS</th><th>H.EXTRAORD.</th></tr></thead><tbody>';
+        foreach ($horas as $r) {
+            $html .= '<tr>
+                <td>' . ($r->fecha ? date('Y-m-d', strtotime($r->fecha)) : '-') . '</td>
+                <td>' . e($r->lugar ?: '-') . '</td>
+                <td>' . e($r->empleado) . '</td>
+                <td>' . $r->hora_entrada . '</td>
+                <td>' . $r->hora_salida . '</td>
+                <td>' . $r->cantidad_horas_normal . '</td>
+                <td>' . $r->cantidad_horas_extra . '</td>
+                <td>' . $r->cantidad_horas_extraordinaria . '</td>
+            </tr>';
+        }
+        $html .= '</tbody></table>';
+
+        // Informes Diarios
+        $html .= '<h3 class="section-title">Informes Diarios (' . $informes->count() . ' registros)</h3>';
+        $html .= '<table><thead><tr><th>ID INFORME</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>UBICACION</th><th>OBSERVACION</th></tr></thead><tbody>';
+        foreach ($informes as $r) {
+            $html .= '<tr>
+                <td>INF-' . str_pad($r->id_informe_diario_ejecucion, 5, '0', STR_PAD_LEFT) . '</td>
+                <td>' . e($r->obra) . '</td>
+                <td>' . ($r->fecha ? date('Y-m-d', strtotime($r->fecha)) : '-') . '</td>
+                <td>' . e($r->lugar ?: '-') . '</td>
+                <td>' . e($r->ubicacion ?: '-') . '</td>
+                <td>' . e($r->observacion ?: '-') . '</td>
+            </tr>';
+        }
+        $html .= '</tbody></table>';
+
         $html .= '<div class="footer">Generado: ' . date('d/m/Y H:i') . ' | INTENERGY</div>
-<script>window.onload = function() { window.print(); }</script>
 </body></html>';
 
         return response($html)->header('Content-Type', 'text/html');
