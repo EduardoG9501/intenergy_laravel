@@ -1013,57 +1013,84 @@ class ReporteController extends Controller
     // Exportar Ejecucion Obra a Excel
     public function exportarEjecucionObra(Request $request)
     {
-        $materiales = $this->getEjecucionMateriales($request);
+        $materiales = $this->getEjecucionMateriales($request)->sortBy('articulo')->values();
         $horas = $this->getEjecucionHoras($request);
         $informes = $this->getEjecucionInformes($request);
-        $imagenes = $this->getEjecucionInformesImagenes($request);
+
+        // Agrupar materiales por artículo
+        $agrupados = [];
+        $totalesMat = [];
+        $granTotalMat = 0;
+        foreach ($materiales as $row) {
+            $articulo = $row->articulo ?: 'Sin artículo';
+            if (!isset($agrupados[$articulo])) {
+                $agrupados[$articulo] = [];
+                $totalesMat[$articulo] = 0;
+            }
+            $agrupados[$articulo][] = $row;
+            $totalesMat[$articulo] += $row->cantidad;
+            $granTotalMat += $row->cantidad;
+        }
 
         $html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="UTF-8">
-<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Ejecución</x:Name></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Ejecucion</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
 <style>
     body { font-family: Arial, sans-serif; font-size: 11px; }
-    h2 { text-align: center; font-size: 16px; }
-    h3 { font-size: 13px; color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 3px; margin-top: 20px; }
+    h2 { text-align: center; font-size: 16px; margin: 8px 0; }
+    h3 { font-size: 13px; color: #0f172a; border-bottom: 2px solid #0d6efd; padding-bottom: 3px; margin-top: 22px; text-transform: uppercase; }
     .info { text-align: center; color: #666; font-size: 10px; margin-bottom: 10px; }
     table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-    th { background: #2c3e50; color: white; padding: 6px 4px; text-align: left; font-size: 10px; }
-    td { padding: 5px 4px; border-bottom: 1px solid #ddd; font-size: 10px; }
-    tr:nth-child(even) { background: #f5f5f5; }
-    .badge-si { background: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 9px; }
-    .badge-no { background: #ffc107; color: #333; padding: 2px 6px; border-radius: 3px; font-size: 9px; }
-    .imgs-grid { display: flex; flex-wrap: wrap; gap: 4px; }
-    .imgs-grid img { width: 40px; height: 40px; object-fit: cover; border: 1px solid #ccc; margin: 1px; }
+    th { background: #0d6efd; color: white; padding: 7px 5px; text-align: center; font-size: 10px; font-weight: bold; border: 1px solid #0d6efd; }
+    td { padding: 6px 5px; border-bottom: 1px solid #dee2e6; font-size: 10px; text-align: center; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    .row-subtotal td { background: #d6eaff !important; font-weight: bold; border-top: 2px solid #0d6efd; border-left: 3px solid #0d6efd; }
+    .row-grand-total td { background: #0d6efd !important; color: white; font-weight: bold; }
+    .badge-si { background: #22c55e; color: white; padding: 2px 8px; }
+    .badge-no { background: #eab308; color: #1e293b; padding: 2px 8px; }
 </style></head><body>
-<h2>Reporte de Ejecución de Obra</h2>
+<h2>Reporte de Ejecucion de Obra</h2>
 <div class="info">Generado: ' . date('d/m/Y H:i') . '</div>';
 
-        // Materiales
+        // Materiales agrupados
         $html .= '<h3>Materiales a Utilizar (' . $materiales->count() . ' registros)</h3>';
-        $html .= '<table><thead><tr><th>Id Orden</th><th>Proyecto</th><th>Nombre De La Obra</th><th>Fecha</th><th>Lugar</th><th>Articulo</th><th>Cantidad</th><th>Contabilizado</th></tr></thead><tbody>';
-        foreach ($materiales as $r) {
-            $html .= '<tr>
-                <td>' . $r->identificador . '</td>
-                <td>' . $r->proyecto . '</td>
-                <td>' . $r->obra . '</td>
-                <td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '-') . '</td>
-                <td>' . ($r->lugar ?: '-') . '</td>
-                <td>' . ($r->articulo ?: '-') . '</td>
-                <td>' . number_format($r->cantidad, 2) . '</td>
-                <td><span class="' . ($r->Contabilizado ? 'badge-si' : 'badge-no') . '">' . ($r->Contabilizado ? 'Sí' : 'No') . '</span></td>
+        $html .= '<table><thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>ARTICULO</th><th>CANTIDAD</th><th>CONTABILIZADO</th></tr></thead><tbody>';
+        foreach ($agrupados as $articulo => $items) {
+            foreach ($items as $r) {
+                $html .= '<tr>
+                    <td>' . $r->identificador . '</td>
+                    <td>' . $r->proyecto . '</td>
+                    <td>' . $r->obra . '</td>
+                    <td>' . ($r->fecha ? date('Y-m-d', strtotime($r->fecha)) : '-') . '</td>
+                    <td>' . ($r->lugar ?: '-') . '</td>
+                    <td>' . ($r->articulo ?: '-') . '</td>
+                    <td>' . number_format($r->cantidad, 2) . '</td>
+                    <td><span class="' . ($r->Contabilizado ? 'badge-si' : 'badge-no') . '">' . ($r->Contabilizado ? 'SI' : 'NO') . '</span></td>
+                </tr>';
+            }
+            $html .= '<tr class="row-subtotal">
+                <td colspan="5"></td>
+                <td style="text-align:right;">Subtotal ' . strtoupper($articulo) . ':</td>
+                <td>' . number_format($totalesMat[$articulo], 2) . '</td>
+                <td></td>
             </tr>';
         }
+        $html .= '<tr class="row-grand-total">
+            <td colspan="6" style="text-align:right;">TOTALES GENERALES:</td>
+            <td>' . number_format($granTotalMat, 2) . '</td>
+            <td></td>
+        </tr>';
         $html .= '</tbody></table>';
 
         // Horas
         $html .= '<h3>Horas de Trabajo (' . $horas->count() . ' registros)</h3>';
-        $html .= '<table><thead><tr><th>Id Orden</th><th>Proyecto</th><th>Nombre De La Obra</th><th>Fecha</th><th>Lugar</th><th>Empleado</th><th>H.Entrada</th><th>H.Salida</th><th>H.Normal</th><th>H.Extras</th><th>H.Extraordinarias</th></tr></thead><tbody>';
+        $html .= '<table><thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>EMPLEADO</th><th>H.ENTRADA</th><th>H.SALIDA</th><th>H.NORMAL</th><th>H.EXTRAS</th><th>H.EXTRAORD.</th></tr></thead><tbody>';
         foreach ($horas as $r) {
             $html .= '<tr>
                 <td>' . $r->identificador . '</td>
                 <td>' . $r->proyecto . '</td>
                 <td>' . $r->obra . '</td>
-                <td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '-') . '</td>
+                <td>' . ($r->fecha ? date('Y-m-d', strtotime($r->fecha)) : '-') . '</td>
                 <td>' . ($r->lugar ?: '-') . '</td>
                 <td>' . $r->empleado . '</td>
                 <td>' . $r->hora_entrada . '</td>
@@ -1077,21 +1104,15 @@ class ReporteController extends Controller
 
         // Informes Diarios
         $html .= '<h3>Informes Diarios (' . $informes->count() . ' registros)</h3>';
-        $html .= '<table><thead><tr><th>Id Informe</th><th>Nombre De La Obra</th><th>Fecha</th><th>Lugar</th><th>Ubicación</th><th>Observación</th><th>Imágenes</th></tr></thead><tbody>';
+        $html .= '<table><thead><tr><th>ID INFORME</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>UBICACION</th><th>OBSERVACION</th></tr></thead><tbody>';
         foreach ($informes as $r) {
-            $imgs = $imagenes->get($r->id_informe_diario_ejecucion, collect());
-            $imgsHtml = '';
-            foreach ($imgs as $img) {
-                $imgsHtml .= '<img src="' . $img->ruta_imagen . '" style="width:40px;height:40px;object-fit:cover;border:1px solid #ccc;margin:1px;">';
-            }
             $html .= '<tr>
                 <td>' . $r->id_informe_diario_ejecucion . '</td>
                 <td>' . $r->obra . '</td>
-                <td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '-') . '</td>
+                <td>' . ($r->fecha ? date('Y-m-d', strtotime($r->fecha)) : '-') . '</td>
                 <td>' . ($r->lugar ?: '-') . '</td>
                 <td>' . ($r->ubicacion ?: '-') . '</td>
                 <td>' . ($r->observacion ?: '-') . '</td>
-                <td class="imgs-grid">' . ($imgsHtml ?: '-') . '</td>
             </tr>';
         }
         $html .= '</tbody></table>';
@@ -1102,6 +1123,7 @@ class ReporteController extends Controller
             'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename="ejecucion_obra_' . date('Y-m-d') . '.xls"',
             'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
             'Expires' => '0',
         ];
 
@@ -1111,10 +1133,24 @@ class ReporteController extends Controller
     // Exportar Ejecucion Obra a PDF
     public function exportarEjecucionObraPdf(Request $request)
     {
-        $materiales = $this->getEjecucionMateriales($request);
+        $materiales = $this->getEjecucionMateriales($request)->sortBy('articulo')->values();
         $horas = $this->getEjecucionHoras($request);
         $informes = $this->getEjecucionInformes($request);
-        $imagenes = $this->getEjecucionInformesImagenes($request);
+
+        // Agrupar materiales por artículo
+        $agrupados = [];
+        $totalesMat = [];
+        $granTotalMat = 0;
+        foreach ($materiales as $row) {
+            $articulo = $row->articulo ?: 'Sin artículo';
+            if (!isset($agrupados[$articulo])) {
+                $agrupados[$articulo] = [];
+                $totalesMat[$articulo] = 0;
+            }
+            $agrupados[$articulo][] = $row;
+            $totalesMat[$articulo] += $row->cantidad;
+            $granTotalMat += $row->cantidad;
+        }
 
         $logoSvg = $this->getLogoSvg();
 
@@ -1123,21 +1159,39 @@ class ReporteController extends Controller
 <title>Reporte de Ejecución de Obra</title>
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #333; padding: 15px; }
-    .header { display: flex; align-items: flex-start; gap: 20px; margin-bottom: 15px; }
-    .header-logo { flex-shrink: 0; margin-top: 5px; }
-    .header-text h1 { font-size: 26px; font-weight: bold; color: #1a1a2e; letter-spacing: 0.5px; }
-    h3 { margin: 18px 0 6px; font-size: 13px; color: #1a3a5c; border-bottom: 2px solid #1a3a5c; padding-bottom: 4px; font-weight: bold; }
-    table { width: 100%; border-collapse: collapse; margin-top: 8px; margin-bottom: 15px; }
-    th { background: #1a3a5c; color: white; padding: 8px 5px; text-align: center; font-size: 9px; font-weight: bold; border: 1px solid #1a3a5c; }
-    td { padding: 6px 5px; border-bottom: 1px solid #dee2e6; font-size: 9px; text-align: center; }
-    tr:nth-child(even) { background: #f5f7fa; }
-    .badge { padding: 3px 8px; border-radius: 3px; font-size: 8px; font-weight: bold; }
-    .badge-si { background: #28a745; color: white; }
-    .badge-no { background: #ffc107; color: #333; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #1e293b; padding: 25px 30px; }
+    .no-print { position: fixed; top: 18px; right: 18px; z-index: 100; }
+    .btn-print { display: inline-flex; align-items: center; gap: 8px; background: #0d6efd; color: #fff; border: none; padding: 10px 22px; font-size: 14px; font-weight: 600; border-radius: 6px; cursor: pointer; box-shadow: 0 3px 10px rgba(13,110,253,0.35); }
+    .btn-print:hover { background: #0b5ed7; }
+    .btn-print svg { width: 18px; height: 18px; fill: #fff; }
+    .header { display: flex; align-items: center; gap: 30px; margin-bottom: 25px; }
+    .header-logo { flex-shrink: 0; }
+    .header-text { flex-grow: 1; text-align: center; }
+    .header-text h1 { font-size: 30px; font-weight: bold; color: #0f172a; letter-spacing: 0.3px; text-align: center; }
+    h3.section-title { margin: 22px 0 8px; font-size: 16px; color: #0f172a; text-transform: uppercase; font-weight: bold; display: inline-block; border-bottom: 3px solid #0d6efd; padding-bottom: 4px; letter-spacing: 0.5px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; margin-bottom: 6px; }
+    th { background: #0d6efd; color: white; padding: 11px 10px; font-size: 13px; font-weight: bold; text-align: center; border: 1px solid #0d6efd; }
+    td { padding: 10px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: center; color: #334155; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    .row-subtotal td { background: #d6eaff !important; font-weight: 700; color: #0f172a; border-left: 3px solid #0d6efd; border-top: 1px solid #b6d4fe; }
+    .row-subtotal td.sub-label { text-align: right; }
+    .row-grand-total td { background: #0d6efd !important; color: #ffffff !important; font-weight: 700; border: none; }
+    .row-grand-total td.sub-label { text-align: right; }
+    .badge { padding: 3px 10px; border-radius: 3px; font-size: 11px; font-weight: bold; display: inline-block; }
+    .badge-si { background: #22c55e; color: #fff; }
+    .badge-no { background: #eab308; color: #1e293b; }
     .footer { margin-top: 25px; text-align: center; font-size: 9px; color: #aaa; border-top: 1px solid #e0e0e0; padding-top: 12px; }
-    @media print { body { padding: 10px; } }
+    @media print {
+        body { padding: 12px; }
+        .no-print { display: none !important; }
+    }
 </style></head><body>
+<div class="no-print">
+    <button type="button" class="btn-print" onclick="window.print()">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>
+        Imprimir
+    </button>
+</div>
 <div class="header">
     <div class="header-logo">' . $logoSvg . '</div>
     <div class="header-text">
@@ -1145,32 +1199,68 @@ class ReporteController extends Controller
     </div>
 </div>';
 
-        // Materiales
-        $html .= '<h3>Materiales a Utilizar (' . $materiales->count() . ' registros)</h3>';
-        $html .= '<table><thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>ARTICULO</th><th>CANTIDAD</th><th>CONTAB.</th></tr></thead><tbody>';
-        foreach ($materiales as $r) {
-            $html .= '<tr><td>' . $r->identificador . '</td><td>' . $r->proyecto . '</td><td>' . $r->obra . '</td><td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '-') . '</td><td>' . $r->lugar . '</td><td>' . $r->articulo . '</td><td><strong>' . number_format($r->cantidad, 2) . '</strong></td><td><span class="badge ' . ($r->Contabilizado ? 'badge-si' : 'badge-no') . '">' . ($r->Contabilizado ? 'Sí' : 'No') . '</span></td></tr>';
+        // Materiales agrupados
+        $html .= '<h3 class="section-title">Materiales a Utilizar (' . $materiales->count() . ' registros)</h3>';
+        $html .= '<table><thead><tr><th>FECHA</th><th>LUGAR</th><th>ARTICULO</th><th>CANTIDAD</th><th>CONTABILIZADO</th></tr></thead><tbody>';
+        foreach ($agrupados as $articulo => $items) {
+            foreach ($items as $r) {
+                $html .= '<tr>
+                    <td>' . ($r->fecha ? date('Y-m-d', strtotime($r->fecha)) : '-') . '</td>
+                    <td>' . e($r->lugar ?: '-') . '</td>
+                    <td>' . e($r->articulo ?: '-') . '</td>
+                    <td><strong>' . number_format($r->cantidad, 2) . '</strong></td>
+                    <td><span class="badge ' . ($r->Contabilizado ? 'badge-si' : 'badge-no') . '">' . ($r->Contabilizado ? 'SI' : 'NO') . '</span></td>
+                </tr>';
+            }
+            $html .= '<tr class="row-subtotal">
+                <td></td>
+                <td></td>
+                <td class="sub-label">Subtotal ' . e($articulo) . '</td>
+                <td>' . number_format($totalesMat[$articulo], 2) . '</td>
+                <td></td>
+            </tr>';
         }
+        $html .= '<tr class="row-grand-total">
+            <td colspan="3" class="sub-label">TOTALES GENERALES:</td>
+            <td>' . number_format($granTotalMat, 2) . '</td>
+            <td></td>
+        </tr>';
         $html .= '</tbody></table>';
 
         // Horas
-        $html .= '<h3>Horas de Trabajo (' . $horas->count() . ' registros)</h3>';
-        $html .= '<table><thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>EMPLEADO</th><th>H.ENTRADA</th><th>H.SALIDA</th><th>H.NORMAL</th><th>H.EXTRAS</th><th>H.EXTRAORD.</th></tr></thead><tbody>';
+        $html .= '<h3 class="section-title">Horas de Trabajo (' . $horas->count() . ' registros)</h3>';
+        $html .= '<table><thead><tr><th>FECHA</th><th>LUGAR</th><th>EMPLEADO</th><th>H.ENTRADA</th><th>H.SALIDA</th><th>H.NORMAL</th><th>H.EXTRAS</th><th>H.EXTRAORD.</th></tr></thead><tbody>';
         foreach ($horas as $r) {
-            $html .= '<tr><td>' . $r->identificador . '</td><td>' . $r->proyecto . '</td><td>' . $r->obra . '</td><td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '-') . '</td><td>' . $r->lugar . '</td><td>' . $r->empleado . '</td><td>' . $r->hora_entrada . '</td><td>' . $r->hora_salida . '</td><td>' . $r->cantidad_horas_normal . '</td><td>' . $r->cantidad_horas_extra . '</td><td>' . $r->cantidad_horas_extraordinaria . '</td></tr>';
+            $html .= '<tr>
+                <td>' . ($r->fecha ? date('Y-m-d', strtotime($r->fecha)) : '-') . '</td>
+                <td>' . e($r->lugar ?: '-') . '</td>
+                <td>' . e($r->empleado) . '</td>
+                <td>' . $r->hora_entrada . '</td>
+                <td>' . $r->hora_salida . '</td>
+                <td>' . $r->cantidad_horas_normal . '</td>
+                <td>' . $r->cantidad_horas_extra . '</td>
+                <td>' . $r->cantidad_horas_extraordinaria . '</td>
+            </tr>';
         }
         $html .= '</tbody></table>';
 
         // Informes
-        $html .= '<h3>Informes Diarios (' . $informes->count() . ' registros)</h3>';
+        $html .= '<h3 class="section-title">Informes Diarios (' . $informes->count() . ' registros)</h3>';
         $html .= '<table><thead><tr><th>ID INFORME</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>UBICACION</th><th>OBSERVACION</th></tr></thead><tbody>';
         foreach ($informes as $r) {
-            $html .= '<tr><td>' . $r->id_informe_diario_ejecucion . '</td><td>' . $r->obra . '</td><td>' . ($r->fecha ? date('d/m/Y', strtotime($r->fecha)) : '-') . '</td><td>' . $r->lugar . '</td><td>' . $r->ubicacion . '</td><td>' . ($r->observacion ?: '-') . '</td></tr>';
+            $html .= '<tr>
+                <td>INF-' . str_pad($r->id_informe_diario_ejecucion, 5, '0', STR_PAD_LEFT) . '</td>
+                <td>' . e($r->obra) . '</td>
+                <td>' . ($r->fecha ? date('Y-m-d', strtotime($r->fecha)) : '-') . '</td>
+                <td>' . e($r->lugar ?: '-') . '</td>
+                <td>' . e($r->ubicacion ?: '-') . '</td>
+                <td>' . e($r->observacion ?: '-') . '</td>
+            </tr>';
         }
         $html .= '</tbody></table>';
 
         $html .= '<div class="footer">Generado: ' . date('d/m/Y H:i') . ' | INTENERGY</div>
-<script>window.onload = function() { window.print(); }</script></body></html>';
+</body></html>';
 
         return response($html)->header('Content-Type', 'text/html');
     }
