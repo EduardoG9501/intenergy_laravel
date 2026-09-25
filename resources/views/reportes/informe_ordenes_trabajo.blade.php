@@ -89,7 +89,7 @@
     </form>
 
     <!-- Botones de exportación -->
-    <div class="d-flex justify-content-end gap-2 mt-3" id="exportButtons" style="display:none !important;">
+    <div class="d-flex justify-content-end gap-2 mt-3" id="exportButtons" @if($resultados->isEmpty()) style="display:none !important;" @endif>
         <a href="#" class="btn btn-success btn-sm" id="btnExportExcel" onclick="exportarExcel()">
             <i class="fa-solid fa-file-excel me-1"></i> Exportar a Excel
         </a>
@@ -211,6 +211,8 @@
 @endsection
 
 @section('scripts')
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.7.0/jspdf.plugin.autotable.min.js"></script>
 <script>
     const CSRF_TOKEN = '{{ csrf_token() }}';
 
@@ -342,10 +344,148 @@
         window.location.href = '{{ route("reportes.exportar_ordenes_trabajo") }}?' + params;
     }
 
+    // === EXPORTAR PDF (jsPDF + autoTable en el navegador) ===
+    const LOGO_SVG_PDF = @json($logoSvg);
+
+    function rasterizarLogoPdf(svg) {
+        return new Promise((resolve) => {
+            if (!svg) { resolve(null); return; }
+            try {
+                const img = new Image();
+                img.onload = () => {
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 420;
+                        canvas.height = 240;
+                        canvas.getContext('2d').drawImage(img, 0, 0, 420, 240);
+                        resolve(canvas.toDataURL('image/png'));
+                    } catch (e) { resolve(null); }
+                };
+                img.onerror = () => resolve(null);
+                img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+            } catch (e) { resolve(null); }
+        });
+    }
+
+    const LOGO_PDF_LISTO = rasterizarLogoPdf(LOGO_SVG_PDF);
+
     function exportarPdf() {
-        const formData = new FormData(document.getElementById('formFiltros'));
-        const params = new URLSearchParams(formData).toString();
-        window.open('{{ route("reportes.exportar_ordenes_trabajo_pdf") }}?' + params, '_blank');
+        if (typeof window.jspdf === 'undefined') {
+            Swal.fire('Error', 'No se pudo cargar la librería PDF. Verifique su conexión e intente de nuevo.', 'error');
+            return;
+        }
+
+        const filas = [];
+        document.querySelectorAll('#tablaResultados tbody tr').forEach(tr => {
+            if (tr.cells.length < 8) return;
+            const c = tr.cells;
+            filas.push([
+                (c[0].innerText || '').trim(),
+                (c[2].innerText || '').trim(),
+                (c[3].innerText || '').trim(),
+                (c[4].innerText || '').trim(),
+                (c[5].innerText || '').trim(),
+                (c[6].innerText || '').trim(),
+                (c[7].innerText || '').trim()
+            ]);
+        });
+        if (filas.length === 0) {
+            Swal.fire('Atención', 'No hay datos disponibles para exportar a PDF.', 'warning');
+            return;
+        }
+
+        const form = document.getElementById('formFiltros');
+        const estadoSel = form.querySelector('[name="estado"]');
+        const filtros = [
+            ['Lugar', 'Todos'],
+            ['Estado', (estadoSel && estadoSel.selectedIndex >= 0) ? estadoSel.options[estadoSel.selectedIndex].text : 'Todos'],
+            ['Proyecto', (document.getElementById('filtro_proyecto_nombre').value || '').trim() || 'Todos'],
+            ['Nombre de la Obra', (document.getElementById('filtro_obra_nombre').value || '').trim() || 'Todas']
+        ];
+        const desde = form.querySelector('[name="fecha_desde"]').value || '{{ date('Y-m-01') }}';
+        const hasta = form.querySelector('[name="fecha_hasta"]').value || '{{ date('Y-m-d') }}';
+
+        const win = window.open('about:blank', '_blank');
+
+        LOGO_PDF_LISTO.then(logoPng => {
+            const doc = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'pt', format: 'A4' });
+            doc.setProperties({ title: 'Reporte de Ordenes Trabajo', subject: 'Reporte de Ordenes de Trabajo' });
+
+            const pageW = doc.internal.pageSize.getWidth();
+            const pageH = doc.internal.pageSize.getHeight();
+
+            if (logoPng) {
+                doc.addImage(logoPng, 'PNG', 40, 28, 100, 57);
+            }
+            const centroTitulo = logoPng ? ((150 + (pageW - 40)) / 2) : (pageW / 2);
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(20);
+            doc.setTextColor(15, 23, 42);
+            doc.text('Reporte de Ordenes de Trabajo', centroTitulo, 58, { align: 'center' });
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(11);
+            doc.setTextColor(44, 62, 80);
+            doc.text('DESDE: ' + desde + '   HASTA: ' + hasta, centroTitulo, 78, { align: 'center' });
+
+            let y = 108;
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(10.5);
+            doc.text('Filtros aplicados:', 40, y);
+            const anchoEncabezado = doc.getTextWidth('Filtros aplicados:');
+            doc.setDrawColor(44, 62, 80);
+            doc.line(40, y + 2, 40 + anchoEncabezado, y + 2);
+
+            y += 17;
+            doc.setFontSize(10);
+            filtros.forEach(([etiqueta, valor]) => {
+                doc.setFont('helvetica', 'bold');
+                doc.text(etiqueta + ':', 40, y);
+                const anchoEtiqueta = doc.getTextWidth(etiqueta + ':');
+                doc.setFont('helvetica', 'normal');
+                doc.text(String(valor), 44 + anchoEtiqueta, y);
+                y += 15;
+            });
+
+            const anchosColumnas = { 0: 42, 1: 68, 2: 138, 3: 55, 4: 55, 5: 100, 6: 48 };
+            const columnStyles = {};
+            Object.keys(anchosColumnas).forEach(idx => {
+                columnStyles[idx] = { cellWidth: anchosColumnas[idx] };
+            });
+            const anchoTabla = Object.values(anchosColumnas).reduce((a, b) => a + b, 0);
+
+            doc.autoTable({
+                head: [['ID ORDEN', 'PROYECTO', 'NOMBRE DE LA OBRA', 'FECHA', 'LUGAR', 'OBSERVACION', 'ESTADO']],
+                body: filas,
+                startY: y + 6,
+                tableWidth: anchoTabla,
+                columnStyles: columnStyles,
+                styles: { fontSize: 8.5, cellPadding: 4, overflow: 'linebreak', valign: 'middle' },
+                headStyles: {
+                    fillColor: [25, 118, 210],
+                    textColor: [255, 255, 255],
+                    fontStyle: 'bold',
+                    halign: 'center',
+                    fontSize: 8.5
+                },
+                alternateRowStyles: { fillColor: [245, 247, 251] },
+                margin: { left: 40, right: 40, top: 30, bottom: 40 }
+            });
+
+            doc.setPage(doc.internal.getNumberOfPages());
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            doc.setTextColor(127, 140, 141);
+            doc.text('Generado el: ' + new Date().toLocaleString() + ' | Usuario: ' + @json(Auth::user()->nombre ?? ''), 40, pageH - 20);
+
+            const url = doc.output('bloburl');
+            if (win && !win.closed) {
+                win.location.href = url;
+            } else {
+                doc.save('Reporte de Ordenes Trabajo.pdf');
+            }
+        });
     }
 </script>
 @endsection

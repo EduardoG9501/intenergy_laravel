@@ -388,7 +388,9 @@ function changeZoom(delta) {
             $resultados = $this->getOrdenesTrabajoQuery($request);
         }
 
-        return view('reportes.informe_ordenes_trabajo', compact('proyectos', 'obras', 'estados', 'resultados'));
+        $logoSvg = $this->getLogoSvg();
+
+        return view('reportes.informe_ordenes_trabajo', compact('proyectos', 'obras', 'estados', 'resultados', 'logoSvg'));
     }
 
     private function getOrdenesTrabajoQuery(Request $request)
