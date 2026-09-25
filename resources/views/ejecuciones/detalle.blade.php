@@ -1031,8 +1031,17 @@
         if (bodyRows.length === 0) { Swal.fire('Atención', 'No hay datos para exportar.', 'warning'); return; }
         var workbook = new ExcelJS.Workbook();
         var ws = workbook.addWorksheet('Horas');
-        ws.columns = headers.map(h => ({ header: h, key: h, width: 25 }));
-        ws.getRow(1).eachCell(cell => { cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FF0B1A30" } }; });
+        ws.columns = headers.map(h => ({ key: h, width: 25 }));
+        var infoProy = ws.addRow(['Proyecto:', @json($ejecucion->orden?->proyecto?->nombre ?? '-')]);
+        var infoObra = ws.addRow(['Nombre de Obra:', @json($ejecucion->orden?->obra?->nombre ?? '-')]);
+        var infoFecha = ws.addRow(['Fecha Ejecución:', @json($ejecucion->fecha_solicitud)]);
+        var infoFeriado = ws.addRow(['¿Es Feriado?:', @json($ejecucion->feriado ? 'Sí (Recargo)' : 'No (Normal)')]);
+        var titleRow = ws.addRow(['Horas de Trabajo - Ejecución EJEC-{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}']);
+        ws.addRow([]);
+        var headerRow = ws.addRow(headers);
+        [infoProy, infoObra, infoFecha, infoFeriado].forEach(r => { r.getCell(1).font = { bold: true, color: { argb: "FF0B1A30" } }; });
+        titleRow.eachCell(cell => { cell.font = { bold: true, size: 12, color: { argb: "FF0B1A30" } }; });
+        headerRow.eachCell(cell => { cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FF0B1A30" } }; cell.alignment = { horizontal: "center", vertical: "middle" }; });
         bodyRows.forEach(row => { var obj = {}; headers.forEach((h, i) => obj[h] = row[i]); ws.addRow(obj); });
         workbook.xlsx.writeBuffer().then(buffer => { saveAs(new Blob([buffer], { type: "application/octet-stream" }), 'Horas_Ejecucion_{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}.xlsx'); });
     });
@@ -1050,96 +1059,228 @@
         });
         if (bodyRows.length === 0) { Swal.fire('Atención', 'No hay datos para exportar.', 'warning'); return; }
         const doc = new window.jspdf.jsPDF();
-        doc.setFontSize(14); doc.setTextColor(11, 26, 48);
-        doc.text('Horas de Trabajo - Ejecución EJEC-{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}', 14, 20);
-        doc.autoTable({ head: [headers], body: bodyRows, startY: 28, headStyles: { fillColor: [11, 26, 48] }, alternateRowStyles: { fillColor: [245, 247, 251] } });
+        doc.setFontSize(11); doc.setTextColor(11, 26, 48); doc.setFont('helvetica', 'bold');
+        doc.text('Proyecto: ' + (@json($ejecucion->orden?->proyecto?->nombre ?? '-')), 14, 16);
+        doc.text('Nombre de Obra: ' + (@json($ejecucion->orden?->obra?->nombre ?? '-')), 14, 22);
+        doc.text('Fecha Ejecución: ' + (@json($ejecucion->fecha_solicitud)), 14, 28);
+        doc.text('¿Es Feriado?: ' + (@json($ejecucion->feriado ? 'Sí (Recargo)' : 'No (Normal)')), 14, 34);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(14);
+        doc.text('Horas de Trabajo - Ejecución EJEC-{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}', 14, 44);
+        doc.autoTable({ head: [headers], body: bodyRows, startY: 52, headStyles: { fillColor: [11, 26, 48] }, alternateRowStyles: { fillColor: [245, 247, 251] } });
         doc.save('Horas_Ejecucion_{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}.pdf');
     });
+
+    // === EXPORT INFORMES DIARIOS: utilidades ===
+    function imagenesDelInforme(idInf) {
+        var cont = document.getElementById('informe-' + idInf);
+        if (!cont) return [];
+        return Array.from(cont.querySelectorAll('img.card-img-top'))
+            .map(function(img) { return img.getAttribute('src'); })
+            .filter(function(s) { return !!s && (s.indexOf('data:image') === 0 || s.indexOf('http') === 0); });
+    }
+
+    // Normaliza la imagen (devuelve data URI utilizable + dimensiones naturales)
+    function prepararImagen(uri) {
+        return new Promise(function(resolve) {
+            var im = new Image();
+            im.onload = function() {
+                var m = /^data:image\/([a-z0-9+-]+)/i.exec(uri || '');
+                var tipo = m ? m[1].toLowerCase() : '';
+                if (tipo === 'jpg') tipo = 'jpeg';
+                var salida = uri, ext = tipo;
+                if (tipo !== 'png' && tipo !== 'jpeg') {
+                    try {
+                        var c = document.createElement('canvas');
+                        c.width = im.naturalWidth; c.height = im.naturalHeight;
+                        c.getContext('2d').drawImage(im, 0, 0);
+                        salida = c.toDataURL('image/png');
+                        ext = 'png';
+                    } catch (e) { resolve(null); return; }
+                }
+                if (im.naturalWidth === 0 || im.naturalHeight === 0) { resolve(null); return; }
+                resolve({ uri: salida, ext: ext, w: im.naturalWidth, h: im.naturalHeight });
+            };
+            im.onerror = function() { resolve(null); };
+            im.src = uri;
+        });
+    }
+
+    // Filas del reporte: una fila por índice (empleado/artículo/descripción), imágenes distribuidas
+    function construirFilasInformes(informesData) {
+        var filas = [];
+        informesData.forEach(function(inf) {
+            var imgs = imagenesDelInforme(inf.id);
+            var n = Math.max(inf.empleados.length, inf.articulos.length, inf.descripciones.length, 1);
+            for (var i = 0; i < n; i++) {
+                var art = inf.articulos[i] || null;
+                filas.push({
+                    empleado: inf.empleados[i] || '',
+                    articulo: art ? (art.nombre || '') : '',
+                    cantidad: (art && art.cantidad !== null && art.cantidad !== undefined && art.cantidad !== '') ? Number(art.cantidad) : null,
+                    imagenes: imgs.filter(function(_, idx) { return idx % n === i; }),
+                    descripcion: inf.descripciones[i] || (i === 0 ? (inf.descripcion || '') : '')
+                });
+            }
+        });
+        return filas;
+    }
+
+    var INFO_EJEC = {
+        proyecto: @json($ejecucion->orden?->proyecto?->nombre ?? '-'),
+        obra: @json($ejecucion->orden?->obra?->nombre ?? '-'),
+        fecha: @json($ejecucion->fecha_solicitud),
+        ejec: 'EJEC-{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}'
+    };
+
+    function pintarEncabezadoInfo(ws) {
+        var infoProy = ws.addRow(['Proyecto:', INFO_EJEC.proyecto]);
+        var infoObra = ws.addRow(['Nombre de Obra:', INFO_EJEC.obra]);
+        var infoFecha = ws.addRow(['Fecha Ejecución:', INFO_EJEC.fecha]);
+        var titleRow = ws.addRow(['Informes Diarios - ' + INFO_EJEC.ejec]);
+        ws.addRow([]);
+        [infoProy, infoObra, infoFecha].forEach(function(r) { r.getCell(1).font = { bold: true, color: { argb: "FF0B1A30" } }; });
+        titleRow.eachCell(function(cell) { cell.font = { bold: true, size: 12, color: { argb: "FF0B1A30" } }; });
+        return ws.addRow(['Empleado', 'Artículo', 'Cantidad', 'Imágenes', 'Descripción']);
+    }
 
     // Export Informe Diario completo (todos los sub-tabs)
     document.getElementById('exportInformeCompleto')?.addEventListener('click', function() {
         var informesData = {!! json_encode($informesDiarios->map(fn($inf) => [
             'id' => $inf->id_informe_diario_ejecucion,
-            'fecha' => $inf->fecha,
             'descripcion' => $inf->descripcion,
-            'observacion' => $inf->observacion,
-            'lugar' => $inf->lugar,
             'empleados' => $inf->empleados->map(fn($e) => $e->empleado?->nombres_apellidos ?? 'N/A'),
-            'articulos' => $inf->articulos->map(fn($a) => ['nombre' => $a->producto?->nombre ?? 'N/A', 'cantidad' => $a->cantidad, 'lote' => $a->lote]),
+            'articulos' => $inf->articulos->map(fn($a) => ['nombre' => $a->producto?->nombre ?? 'N/A', 'cantidad' => $a->cantidad]),
             'descripciones' => $inf->detalles->map(fn($d) => $d->descripcion),
         ])) !!};
 
         if (informesData.length === 0) { Swal.fire('Atención', 'No hay informes diarios para exportar.', 'warning'); return; }
 
-        var workbook = new ExcelJS.Workbook();
-        var ws = workbook.addWorksheet('Informes Diarios');
-        ws.columns = [
-            { header: 'ID Informe', key: 'id', width: 15 },
-            { header: 'Fecha', key: 'fecha', width: 15 },
-            { header: 'Descripción', key: 'descripcion', width: 30 },
-            { header: 'Observación', key: 'observacion', width: 30 },
-            { header: 'Lugar', key: 'lugar', width: 20 },
-            { header: 'Empleados', key: 'empleados', width: 40 },
-            { header: 'Artículos', key: 'articulos', width: 50 },
-            { header: 'Descripciones', key: 'descripciones', width: 40 }
-        ];
-        ws.getRow(1).eachCell(cell => { cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FF0B1A30" } }; });
+        var filas = construirFilasInformes(informesData);
+        if (filas.length === 0) { Swal.fire('Atención', 'No hay datos para exportar.', 'warning'); return; }
 
-        informesData.forEach(inf => {
-            var arts = inf.articulos.map(a => a.nombre + ' (x' + a.cantidad + ')' + (a.lote ? ' Lote:' + a.lote : '')).join(', ');
-            var emps = inf.empleados.join(', ');
-            var descs = inf.descripciones.join(' | ');
-            ws.addRow({
-                id: 'INF-' + String(inf.id).padStart(5, '0'),
-                fecha: inf.fecha,
-                descripcion: inf.descripcion || 'Sin descripción',
-                observacion: inf.observacion || 'Sin observación',
-                lugar: inf.lugar || 'N/A',
-                empleados: emps || 'Sin empleados',
-                articulos: arts || 'Sin artículos',
-                descripciones: descs || 'Sin descripciones'
+        var uris = [];
+        filas.forEach(function(f) { f.imagenes.forEach(function(u) { if (uris.indexOf(u) === -1) uris.push(u); }); });
+
+        Promise.all(uris.map(prepararImagen)).then(function(preps) {
+            var mapa = {};
+            uris.forEach(function(u, i) { if (preps[i]) mapa[u] = preps[i]; });
+
+            var workbook = new ExcelJS.Workbook();
+            var ws = workbook.addWorksheet('Informes Diarios');
+            ws.columns = [
+                { key: 'empleado', width: 30 },
+                { key: 'articulo', width: 35 },
+                { key: 'cantidad', width: 12 },
+                { key: 'imagenes', width: 25 },
+                { key: 'descripcion', width: 40 }
+            ];
+            var headerRow = pintarEncabezadoInfo(ws);
+            headerRow.eachCell(function(cell) {
+                cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FF0B1A30" } };
+                cell.alignment = { horizontal: "center", vertical: "middle" };
             });
-        });
 
-        workbook.xlsx.writeBuffer().then(buffer => { saveAs(new Blob([buffer], { type: "application/octet-stream" }), 'Informes_Diarios_EJEC-{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}.xlsx'); });
+            var colPx = 25 * 7 + 5;
+            filas.forEach(function(f) {
+                var row = ws.addRow({
+                    empleado: f.empleado || '',
+                    articulo: f.articulo || '',
+                    cantidad: f.cantidad !== null ? f.cantidad : '',
+                    imagenes: '',
+                    descripcion: f.descripcion || ''
+                });
+                if (f.cantidad !== null) row.getCell(3).numFmt = '0.00';
+                if (!f.imagenes.length) return;
+                var lineas = Math.ceil(f.imagenes.length / 3);
+                var altoPt = lineas * 40 + 10;
+                row.height = altoPt;
+                var altoPx = altoPt * 96 / 72;
+                f.imagenes.forEach(function(u, i) {
+                    var p = mapa[u];
+                    if (!p) return;
+                    var esc = Math.min(46 / p.w, 40 / p.h, 1);
+                    var w = Math.max(8, Math.round(p.w * esc)), h = Math.max(8, Math.round(p.h * esc));
+                    var idImg = workbook.addImage({ base64: p.uri, extension: p.ext });
+                    var offX = 4 + (i % 3) * (w + 6);
+                    var offY = 4 + Math.floor(i / 3) * 46;
+                    ws.addImage(idImg, {
+                        tl: { col: 3 + offX / colPx, row: (row.number - 1) + offY / altoPx },
+                        ext: { width: w, height: h }
+                    });
+                });
+            });
+
+            workbook.xlsx.writeBuffer().then(buffer => { saveAs(new Blob([buffer], { type: "application/octet-stream" }), 'Informes_Diarios_' + INFO_EJEC.ejec + '.xlsx'); });
+        });
     });
 
     document.getElementById('exportInformeCompletoPDF')?.addEventListener('click', function() {
         var informesData = {!! json_encode($informesDiarios->map(fn($inf) => [
             'id' => $inf->id_informe_diario_ejecucion,
-            'fecha' => $inf->fecha,
             'descripcion' => $inf->descripcion,
-            'observacion' => $inf->observacion,
-            'lugar' => $inf->lugar,
             'empleados' => $inf->empleados->map(fn($e) => $e->empleado?->nombres_apellidos ?? 'N/A'),
-            'articulos' => $inf->articulos->map(fn($a) => ['nombre' => $a->producto?->nombre ?? 'N/A', 'cantidad' => $a->cantidad, 'lote' => $a->lote]),
+            'articulos' => $inf->articulos->map(fn($a) => ['nombre' => $a->producto?->nombre ?? 'N/A', 'cantidad' => $a->cantidad]),
             'descripciones' => $inf->detalles->map(fn($d) => $d->descripcion),
         ])) !!};
 
         if (informesData.length === 0) { Swal.fire('Atención', 'No hay informes diarios para exportar.', 'warning'); return; }
 
-        const doc = new window.jspdf.jsPDF('p', 'mm', 'a4');
-        doc.setFontSize(16); doc.setTextColor(11, 26, 48);
-        doc.text('Informes Diarios - EJEC-{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}', 14, 15);
+        var filas = construirFilasInformes(informesData);
+        if (filas.length === 0) { Swal.fire('Atención', 'No hay datos para exportar.', 'warning'); return; }
 
-        var y = 25;
-        informesData.forEach((inf, idx) => {
-            if (y > 260) { doc.addPage(); y = 15; }
-            doc.setFontSize(11); doc.setTextColor(11, 26, 48); doc.setFont(undefined, 'bold');
-            doc.text('INF-' + String(inf.id).padStart(5, '0') + ' | Fecha: ' + inf.fecha + (inf.lugar ? ' | Lugar: ' + inf.lugar : ''), 14, y);
-            y += 6; doc.setFont(undefined, 'normal'); doc.setFontSize(9); doc.setTextColor(80);
-            if (inf.descripcion) { doc.text('Descripción: ' + inf.descripcion, 14, y); y += 5; }
-            if (inf.observacion) { doc.text('Observación: ' + inf.observacion, 14, y); y += 5; }
-            if (inf.empleados.length > 0) { doc.text('Empleados: ' + inf.empleados.join(', '), 14, y); y += 5; }
-            if (inf.articulos.length > 0) {
-                var arts = inf.articulos.map(a => a.nombre + ' (x' + a.cantidad + ')' + (a.lote ? ' Lote:' + a.lote : '')).join(', ');
-                doc.text('Artículos: ' + arts, 14, y); y += 5;
-            }
-            if (inf.descripciones.length > 0) { doc.text('Descripciones: ' + inf.descripciones.join(' | '), 14, y); y += 5; }
-            y += 4;
+        var uris = [];
+        filas.forEach(function(f) { f.imagenes.forEach(function(u) { if (uris.indexOf(u) === -1) uris.push(u); }); });
+
+        Promise.all(uris.map(prepararImagen)).then(function(preps) {
+            var mapa = {};
+            uris.forEach(function(u, i) { if (preps[i]) mapa[u] = preps[i]; });
+
+            const doc = new window.jspdf.jsPDF('p', 'mm', 'a4');
+            doc.setFontSize(11); doc.setTextColor(11, 26, 48); doc.setFont('helvetica', 'bold');
+            doc.text('Proyecto: ' + INFO_EJEC.proyecto, 14, 16);
+            doc.text('Nombre de Obra: ' + INFO_EJEC.obra, 14, 22);
+            doc.text('Fecha Ejecución: ' + INFO_EJEC.fecha, 14, 28);
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(14);
+            doc.text('Informes Diarios - ' + INFO_EJEC.ejec, 14, 38);
+
+            var body = filas.map(function(f) {
+                return [f.empleado || '', f.articulo || '', f.cantidad !== null ? f.cantidad.toFixed(2) : '', '', f.descripcion || ''];
+            });
+
+            doc.autoTable({
+                head: [['Empleado', 'Artículo', 'Cantidad', 'Imágenes', 'Descripción']],
+                body: body,
+                startY: 46,
+                margin: { top: 10, right: 14, bottom: 10, left: 14 },
+                headStyles: { fillColor: [11, 26, 48] },
+                alternateRowStyles: { fillColor: [245, 247, 251] },
+                styles: { cellPadding: 2, valign: 'top', overflow: 'linebreak' },
+                columnStyles: { 2: { halign: 'right', cellWidth: 18 }, 3: { cellWidth: 48 } },
+                didParseCell: function(data) {
+                    if (data.section === 'body' && data.column.index === 3) {
+                        var imgs = filas[data.row.index].imagenes;
+                        if (imgs.length) data.cell.styles.minCellHeight = Math.ceil(imgs.length / 3) * 19 + 4;
+                    }
+                },
+                didDrawCell: function(data) {
+                    if (data.section !== 'body' || data.column.index !== 3) return;
+                    var imgs = filas[data.row.index].imagenes;
+                    imgs.forEach(function(u, i) {
+                        var p = mapa[u];
+                        if (!p) return;
+                        var esc = Math.min(14 / p.w, 15 / p.h, 1);
+                        var w = Math.max(4, p.w * esc), h = Math.max(4, p.h * esc);
+                        var x = data.cell.x + 2 + (i % 3) * 15;
+                        var y = data.cell.y + 2 + Math.floor(i / 3) * 19;
+                        doc.addImage(p.uri, p.ext === 'jpeg' ? 'JPEG' : 'PNG', x, y, w, h);
+                    });
+                }
+            });
+
+            doc.save('Informes_Diarios_' + INFO_EJEC.ejec + '.pdf');
         });
-
-        doc.save('Informes_Diarios_EJEC-{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}.pdf');
     });
 </script>
 @endsection
