@@ -125,7 +125,7 @@ class ReporteController extends Controller
 <h2>Entrada / Salida (Kardex)</h2>
 <div class="info">Generado: ' . date('d/m/Y H:i') . ' | Total: ' . $resultados->count() . ' registro(s)</div>
 <table>
-<thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>LUGAR</th><th>FECHA</th><th>TIPO MOVIMIENTO</th><th>SUB TIPO MOVIMIENTO</th><th>ARTICULO</th><th>CANTIDAD</th><th style="background:#fde047;color:#0f172a;border:1px solid #eab308;">STOCK ACTUAL</th><th>Nº DOCUMENTO</th></tr></thead>
+<thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>LUGAR</th><th>FECHA</th><th>TIPO MOVIMIENTO</th><th>SUB TIPO MOVIMIENTO</th><th>ARTICULO</th><th>CANTIDAD</th><th>STOCK ACTUAL</th><th>Nº DOCUMENTO</th></tr></thead>
 <tbody>';
 
         foreach ($resultados as $r) {
@@ -216,7 +216,7 @@ class ReporteController extends Controller
     </div>
 </div>
 <table>
-<thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>LUGAR</th><th>FECHA</th><th>TIPO MOVIMIENTO</th><th>SUB TIPO</th><th>ARTICULO</th><th>CANTIDAD</th><th style="background:#fde047;color:#0f172a;border:1px solid #eab308;">STOCK ACTUAL</th><th>Nº DOCUMENTO</th></tr></thead>
+<thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>LUGAR</th><th>FECHA</th><th>TIPO MOVIMIENTO</th><th>SUB TIPO</th><th>ARTICULO</th><th>CANTIDAD</th><th>STOCK ACTUAL</th><th>Nº DOCUMENTO</th></tr></thead>
 <tbody>';
 
         foreach ($resultados as $r) {

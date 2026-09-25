@@ -43,13 +43,11 @@
             <label class="form-label fw-semibold">Lugar / Bodega:</label>
             <input type="hidden" name="id_bodega" id="filtro_bodega_id" value="{{ $bodegaActivaId ?? '' }}">
             <div class="input-group">
-                <input type="text" class="form-control bg-white" id="filtro_bodega_nombre" readonly placeholder="Todas las bodegas" value="{{ $bodegaActivaNombre ?? '' }}" style="font-size:13px;">
-                <button type="button" class="btn btn-outline-primary" onclick="abrirModalBodega()" title="Buscar bodega">
-                    <i class="fa-solid fa-magnifying-glass"></i>
-                </button>
-                <button type="button" class="btn btn-outline-danger" id="filtro_bodega_clear" style="{{ ($bodegaActivaId ?? '') ? '' : 'display:none;' }}" onclick="limpiarBodega()" title="Limpiar">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
+                <span class="input-group-text bg-light"><i class="fa-solid fa-lock text-muted"></i></span>
+                <input type="text" class="form-control bg-light" id="filtro_bodega_nombre"
+                       value="{{ $bodegaActivaNombre ?? '' }}"
+                       placeholder="{{ ($bodegaActivaId ?? '') ? 'Bodega conectada' : 'Sin bodega conectada' }}"
+                       readonly disabled style="font-size:13px;">
             </div>
         </div>
         <div class="col-md-4">
@@ -112,78 +110,10 @@
     </div>
 </div>
 
-<!-- MODAL BUSCAR BODEGA -->
-<div class="modal fade" id="modalBodega" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
-    <div class="modal-dialog modal-dialog-centered" style="z-index: 1060;">
-        <div class="modal-content border-0 shadow-lg" style="z-index: 1060;">
-            <div class="modal-header bg-primary text-white py-3">
-                <h5 class="fw-bold mb-0"><i class="fa-solid fa-warehouse me-2"></i> Seleccionar Lugar / Bodega</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-3">
-                <div class="input-group mb-3">
-                    <span class="input-group-text bg-white"><i class="fa-solid fa-search text-muted"></i></span>
-                    <input type="text" class="form-control" id="buscadorBodega" placeholder="Escribe para buscar por nombre..." oninput="buscarBodega()" style="font-size: 13px;">
-                </div>
-                <div class="list-group" id="listaBodega" style="max-height: 350px; overflow-y: auto;"></div>
-                <div id="sinResultadosBodega" class="text-center text-muted py-4" style="display:none;">
-                    <i class="fa-solid fa-warehouse fa-2x mb-2 text-warning"></i>
-                    <p class="mb-0">No se encontraron bodegas</p>
-                </div>
-            </div>
-            <div class="modal-footer border-0 pt-0 pb-3">
-                <button type="button" class="btn btn-sm btn-outline-secondary px-3" data-bs-dismiss="modal">Cancelar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 @endsection
 
 @section('scripts')
 <script>
-    // === BODEGA ===
-    function abrirModalBodega() {
-        document.getElementById('buscadorBodega').value = '';
-        buscarBodega();
-        new bootstrap.Modal(document.getElementById('modalBodega')).show();
-        setTimeout(() => document.getElementById('buscadorBodega').focus(), 400);
-    }
-
-    function buscarBodega() {
-        const q = document.getElementById('buscadorBodega').value;
-        fetch('{{ route("reportes.buscar_bodegas") }}?' + new URLSearchParams({ q }), {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(r => r.json())
-        .then(data => {
-            const lista = document.getElementById('listaBodega');
-            const sinRes = document.getElementById('sinResultadosBodega');
-            if (data.length === 0) { lista.innerHTML = ''; sinRes.style.display = ''; return; }
-            sinRes.style.display = 'none';
-            lista.innerHTML = data.map(b =>
-                `<button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2"
-                    onclick="seleccionarBodega(${b.id_bodega}, '${(b.nombreBodega || '').replace(/'/g, "\\'")}')">
-                    <span class="fw-semibold">${b.nombreBodega}</span>
-                    <i class="fa-solid fa-chevron-right text-muted small"></i>
-                </button>`
-            ).join('');
-        });
-    }
-
-    function seleccionarBodega(id, nombre) {
-        document.getElementById('filtro_bodega_id').value = id;
-        document.getElementById('filtro_bodega_nombre').value = nombre;
-        document.getElementById('filtro_bodega_clear').style.display = '';
-        bootstrap.Modal.getInstance(document.getElementById('modalBodega')).hide();
-    }
-
-    function limpiarBodega() {
-        document.getElementById('filtro_bodega_id').value = '';
-        document.getElementById('filtro_bodega_nombre').value = '';
-        document.getElementById('filtro_bodega_clear').style.display = 'none';
-    }
-
     // === ARTICULO (autocomplete) ===
     const inputArt = document.getElementById('filtro_producto_nombre');
     const dropdownArt = document.getElementById('artDropdown');

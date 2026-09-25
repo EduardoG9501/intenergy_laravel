@@ -10,7 +10,7 @@
             <th>Sub Tipo Movimiento</th>
             <th>Articulo</th>
             <th>Cantidad</th>
-            <th style="background:#fde047;color:#0f172a;">Stock Actual</th>
+            <th>Stock Actual</th>
             <th>#Documento</th>
         </tr>
     </thead>
