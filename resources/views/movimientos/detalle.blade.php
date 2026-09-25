@@ -594,17 +594,39 @@
     // Export Excel
     document.getElementById('exportExcel')?.addEventListener('click', function() {
         var table = document.getElementById('tablaDetalleArticulos');
-        var headers = Array.from(table.querySelectorAll('thead tr th')).slice(0, -1).map(cell => cell.innerText);
-        
+        var ths = Array.from(table.querySelectorAll('thead tr th')).map(cell => cell.innerText.trim());
+        var dropAcciones = ths.length > 0 && ths[ths.length - 1].toUpperCase().includes('ACCION');
+        var headers = dropAcciones ? ths.slice(0, -1) : ths;
+
         var bodyRows = [];
         Array.from(table.querySelectorAll('tbody tr')).forEach(row => {
-            var cols = Array.from(row.cells).slice(0, -1).map(cell => cell.innerText);
+            if (row.querySelector('td[colspan]')) return;
+            var cells = Array.from(row.cells);
+            if (dropAcciones) cells.pop();
+            var cols = cells.map(cell => cell.innerText.trim());
             if (cols.length > 1) bodyRows.push(cols);
         });
 
         if (bodyRows.length === 0) {
             Swal.fire('Atención', 'No hay artículos cargados para exportar.', 'warning');
             return;
+        }
+
+        var parseNum = function(v) { var n = parseFloat(String(v).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; };
+        var subIdx = headers.findIndex(h => h.toLowerCase().includes('subtotal'));
+        var totIdx = headers.findIndex(h => h.toLowerCase().trim() === 'total');
+        var tieneTotales = subIdx >= 0 || totIdx >= 0;
+        var sumSub = 0, sumTot = 0;
+        if (tieneTotales) {
+            bodyRows.forEach(function(r) {
+                if (subIdx >= 0) sumSub += parseNum(r[subIdx]);
+                if (totIdx >= 0) sumTot += parseNum(r[totIdx]);
+            });
+            var totalRow = headers.map(function() { return ''; });
+            totalRow[0] = 'TOTAL';
+            if (subIdx >= 0) totalRow[subIdx] = '$' + sumSub.toFixed(2);
+            if (totIdx >= 0) totalRow[totIdx] = '$' + sumTot.toFixed(2);
+            bodyRows.push(totalRow);
         }
 
         var workbook = new ExcelJS.Workbook();
@@ -619,6 +641,13 @@
 
         bodyRows.forEach(row => worksheet.addRow(row));
 
+        if (tieneTotales && worksheet.lastRow) {
+            worksheet.lastRow.eachCell(cell => {
+                cell.font = { bold: true, color: { argb: "FF0B1A30" } };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FFD6EAF8" } };
+            });
+        }
+
         worksheet.columns.forEach(column => {
             column.width = 22;
         });
@@ -631,17 +660,39 @@
     // Export PDF
     document.getElementById('exportPDF')?.addEventListener('click', function() {
         var table = document.getElementById('tablaDetalleArticulos');
-        var headers = Array.from(table.querySelectorAll('thead tr th')).slice(0, -1).map(cell => cell.innerText);
-        
+        var ths = Array.from(table.querySelectorAll('thead tr th')).map(cell => cell.innerText.trim());
+        var dropAcciones = ths.length > 0 && ths[ths.length - 1].toUpperCase().includes('ACCION');
+        var headers = dropAcciones ? ths.slice(0, -1) : ths;
+
         var bodyRows = [];
         Array.from(table.querySelectorAll('tbody tr')).forEach(row => {
-            var cols = Array.from(row.cells).slice(0, -1).map(cell => cell.innerText);
+            if (row.querySelector('td[colspan]')) return;
+            var cells = Array.from(row.cells);
+            if (dropAcciones) cells.pop();
+            var cols = cells.map(cell => cell.innerText.trim());
             if (cols.length > 1) bodyRows.push(cols);
         });
 
         if (bodyRows.length === 0) {
             Swal.fire('Atención', 'No hay artículos cargados para exportar.', 'warning');
             return;
+        }
+
+        var parseNum = function(v) { var n = parseFloat(String(v).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; };
+        var subIdx = headers.findIndex(h => h.toLowerCase().includes('subtotal'));
+        var totIdx = headers.findIndex(h => h.toLowerCase().trim() === 'total');
+        var footRow = null;
+        if (subIdx >= 0 || totIdx >= 0) {
+            var sumSub = 0, sumTot = 0;
+            bodyRows.forEach(function(r) {
+                if (subIdx >= 0) sumSub += parseNum(r[subIdx]);
+                if (totIdx >= 0) sumTot += parseNum(r[totIdx]);
+            });
+            var totalRow = headers.map(function() { return ''; });
+            totalRow[0] = 'TOTAL';
+            if (subIdx >= 0) totalRow[subIdx] = '$' + sumSub.toFixed(2);
+            if (totIdx >= 0) totalRow[totIdx] = '$' + sumTot.toFixed(2);
+            footRow = [totalRow];
         }
 
         const doc = new window.jspdf.jsPDF();
@@ -656,8 +707,10 @@
         doc.autoTable({
             head: [headers],
             body: bodyRows,
+            foot: footRow || undefined,
             startY: 42,
             headStyles: { fillColor: [11, 26, 48] },
+            footStyles: { fillColor: [214, 234, 248], fontStyle: 'bold', textColor: [11, 26, 48] },
             alternateRowStyles: { fillColor: [245, 247, 251] }
         });
 

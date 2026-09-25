@@ -977,8 +977,16 @@
         if (bodyRows.length === 0) { Swal.fire('Atención', 'No hay datos para exportar.', 'warning'); return; }
         var workbook = new ExcelJS.Workbook();
         var ws = workbook.addWorksheet('Materiales');
-        ws.columns = headers.map(h => ({ header: h, key: h, width: 35 }));
-        ws.getRow(1).eachCell(cell => { cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FF0B1A30" } }; });
+        ws.columns = headers.map(h => ({ key: h, width: 35 }));
+        var infoProy = ws.addRow(['Proyecto:', @json($ejecucion->orden?->proyecto?->nombre ?? '-')]);
+        var infoObra = ws.addRow(['Nombre de Obra:', @json($ejecucion->orden?->obra?->nombre ?? '-')]);
+        var infoFecha = ws.addRow(['Fecha Ejecución:', @json($ejecucion->fecha_solicitud)]);
+        var titleRow = ws.addRow(['Materiales - Ejecución EJEC-{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}']);
+        ws.addRow([]);
+        var headerRow = ws.addRow(headers);
+        [infoProy, infoObra, infoFecha].forEach(r => { r.getCell(1).font = { bold: true, color: { argb: "FF0B1A30" } }; });
+        titleRow.eachCell(cell => { cell.font = { bold: true, size: 12, color: { argb: "FF0B1A30" } }; });
+        headerRow.eachCell(cell => { cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: "FF0B1A30" } }; cell.alignment = { horizontal: "center", vertical: "middle" }; });
         bodyRows.forEach(row => { var obj = {}; headers.forEach((h, i) => obj[h] = row[i]); ws.addRow(obj); });
         workbook.xlsx.writeBuffer().then(buffer => { saveAs(new Blob([buffer], { type: "application/octet-stream" }), 'Materiales_Ejecucion_{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}.xlsx'); });
     });
@@ -996,9 +1004,14 @@
         });
         if (bodyRows.length === 0) { Swal.fire('Atención', 'No hay datos para exportar.', 'warning'); return; }
         const doc = new window.jspdf.jsPDF();
-        doc.setFontSize(14); doc.setTextColor(11, 26, 48);
-        doc.text('Materiales - Ejecución EJEC-{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}', 14, 20);
-        doc.autoTable({ head: [headers], body: bodyRows, startY: 28, headStyles: { fillColor: [11, 26, 48] }, alternateRowStyles: { fillColor: [245, 247, 251] } });
+        doc.setFontSize(11); doc.setTextColor(11, 26, 48); doc.setFont('helvetica', 'bold');
+        doc.text('Proyecto: ' + (@json($ejecucion->orden?->proyecto?->nombre ?? '-')), 14, 16);
+        doc.text('Nombre de Obra: ' + (@json($ejecucion->orden?->obra?->nombre ?? '-')), 14, 22);
+        doc.text('Fecha Ejecución: ' + (@json($ejecucion->fecha_solicitud)), 14, 28);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(14);
+        doc.text('Materiales - Ejecución EJEC-{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}', 14, 38);
+        doc.autoTable({ head: [headers], body: bodyRows, startY: 46, headStyles: { fillColor: [11, 26, 48] }, alternateRowStyles: { fillColor: [245, 247, 251] } });
         doc.save('Materiales_Ejecucion_{{ str_pad($ejecucion->id_ejecucion_obra, 5, '0', STR_PAD_LEFT) }}.pdf');
     });
 
