@@ -1016,6 +1016,74 @@ function changeZoom(delta) {
         return $query->get()->groupBy('id_informe_diario_ejecucion');
     }
 
+    // Detalle de informes (artículos, empleados, descripciones) agrupado por informe
+    private function getEjecucionInformesDetalles($informes)
+    {
+        $ids = $informes->pluck('id_informe_diario_ejecucion')->all();
+        if (empty($ids)) {
+            return collect();
+        }
+
+        return \App\Models\InformeDiarioEjecucion::with(['empleados.empleado', 'articulos.producto', 'detalles'])
+            ->whereIn('id_informe_diario_ejecucion', $ids)
+            ->get()
+            ->keyBy('id_informe_diario_ejecucion');
+    }
+
+    // Fila de detalle de un informe: Artículos | Empleados | Imágenes | Descripción
+    private function buildInformeDetalleHtml($idInforme, $detalles, $imagenes, $isPdf = false)
+    {
+        $inf = $detalles->get($idInforme);
+        $imgs = $imagenes->get($idInforme, collect());
+
+        $arts = [];
+        $emps = [];
+        $descs = [];
+        if ($inf) {
+            foreach ($inf->articulos as $a) {
+                $nombre = $a->producto ? $a->producto->nombre : 'N/A';
+                $arts[] = e($nombre) . ' (' . $a->cantidad . ') [Lote :' . e($a->lote ?: '-') . ']';
+            }
+            foreach ($inf->empleados as $emp) {
+                $emps[] = e($emp->empleado ? $emp->empleado->nombres_apellidos : 'N/A');
+            }
+            if ($inf->descripcion) {
+                $descs[] = $inf->descripcion;
+            }
+            foreach ($inf->detalles as $d) {
+                $descs[] = $d->descripcion;
+            }
+        }
+
+        $imgsHtml = '';
+        foreach ($imgs as $img) {
+            $size = $isPdf ? 80 : 70;
+            $imgsHtml .= '<img src="' . $img->ruta_imagen . '" style="width:' . $size . 'px;height:' . $size . 'px;object-fit:cover;border:1px solid #ccc;margin:2px;">';
+        }
+
+        $font = $isPdf ? 'font-size:12px;' : 'font-size:10px;';
+        $cell = 'vertical-align:top;text-align:left;padding:8px 10px;border-bottom:1px solid #e2e8f0;line-height:1.6;' . $font;
+        $label = 'font-weight:bold;color:#0f172a;';
+
+        $artHtml = implode('<br>', $arts) ?: '-';
+        $empHtml = implode('<br>', $emps) ?: '-';
+        $imgHtml = $imgsHtml ?: '-';
+        $descHtml = implode('<br>', array_map('e', $descs)) ?: '-';
+
+        return '<tr>
+            <td colspan="6" style="padding:0;background:#f1f5f9;">
+                <table style="width:100%;border-collapse:collapse;">
+                    <tr>
+                        <td style="width:30%;' . $cell . '"><span style="' . $label . '">Artículos:</span><br>' . $artHtml . '</td>
+                        <td style="width:22%;' . $cell . '"><span style="' . $label . '">Empleados:</span><br>' . $empHtml . '</td>
+                        <td style="width:23%;' . $cell . '"><span style="' . $label . '">Imágenes:</span><br>' . $imgHtml . '</td>
+                        <td style="width:25%;' . $cell . '"><span style="' . $label . '">Descripción:</span><br>' . $descHtml . '</td>
+                    </tr>
+                </table>
+            </td>
+        </tr>';
+    }
+
     // Exportar Ejecucion Obra a Excel
     public function exportarEjecucionObra(Request $request)
     {
@@ -1108,18 +1176,22 @@ function changeZoom(delta) {
         }
         $html .= '</tbody></table>';
 
-        // Informes Diarios
+        // Informes Diarios (con detalle: artículos, empleados, imágenes y descripción)
+        $informeDetalles = $this->getEjecucionInformesDetalles($informes);
+        $imagenesInf = $this->getEjecucionInformesImagenes($request);
+
         $html .= '<h3>Informes Diarios (' . $informes->count() . ' registros)</h3>';
-        $html .= '<table><thead><tr><th>ID INFORME</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>UBICACION</th><th>OBSERVACION</th></tr></thead><tbody>';
+        $html .= '<table><thead><tr><th>NOMBRE DE LA OBRA</th><th>ORDEN TRABAJO</th><th>FECHA</th><th>LUGAR</th><th>UBICACIÓN</th><th>OBSERVACIÓN</th></tr></thead><tbody>';
         foreach ($informes as $r) {
             $html .= '<tr>
-                <td>' . $r->id_informe_diario_ejecucion . '</td>
                 <td>' . $r->obra . '</td>
+                <td>' . $r->identificador . '</td>
                 <td>' . ($r->fecha ? date('Y-m-d', strtotime($r->fecha)) : '-') . '</td>
                 <td>' . ($r->lugar ?: '-') . '</td>
                 <td>' . ($r->ubicacion ?: '-') . '</td>
                 <td>' . ($r->observacion ?: '-') . '</td>
             </tr>';
+            $html .= $this->buildInformeDetalleHtml($r->id_informe_diario_ejecucion, $informeDetalles, $imagenesInf, false);
         }
         $html .= '</tbody></table>';
 
@@ -1250,18 +1322,22 @@ function changeZoom(delta) {
         }
         $html .= '</tbody></table>';
 
-        // Informes
+        // Informes (con detalle: artículos, empleados, imágenes y descripción)
+        $informeDetalles = $this->getEjecucionInformesDetalles($informes);
+        $imagenesInf = $this->getEjecucionInformesImagenes($request);
+
         $html .= '<h3 class="section-title">Informes Diarios (' . $informes->count() . ' registros)</h3>';
-        $html .= '<table><thead><tr><th>ID INFORME</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>UBICACION</th><th>OBSERVACION</th></tr></thead><tbody>';
+        $html .= '<table><thead><tr><th>NOMBRE DE LA OBRA</th><th>ORDEN TRABAJO</th><th>FECHA</th><th>LUGAR</th><th>UBICACIÓN</th><th>OBSERVACIÓN</th></tr></thead><tbody>';
         foreach ($informes as $r) {
             $html .= '<tr>
-                <td>INF-' . str_pad($r->id_informe_diario_ejecucion, 5, '0', STR_PAD_LEFT) . '</td>
                 <td>' . e($r->obra) . '</td>
+                <td>' . e($r->identificador) . '</td>
                 <td>' . ($r->fecha ? date('Y-m-d', strtotime($r->fecha)) : '-') . '</td>
                 <td>' . e($r->lugar ?: '-') . '</td>
                 <td>' . e($r->ubicacion ?: '-') . '</td>
                 <td>' . e($r->observacion ?: '-') . '</td>
             </tr>';
+            $html .= $this->buildInformeDetalleHtml($r->id_informe_diario_ejecucion, $informeDetalles, $imagenesInf, true);
         }
         $html .= '</tbody></table>';
 
