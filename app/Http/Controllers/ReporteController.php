@@ -1030,6 +1030,53 @@ function changeZoom(delta) {
             ->keyBy('id_informe_diario_ejecucion');
     }
 
+    // Convierte las imágenes base64 en archivos públicos con URL absoluta (Excel no renderiza data URIs)
+    private function materializarImagenesInforme($imagenes)
+    {
+        $dir = public_path('report_tmp');
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+
+        if (is_dir($dir)) {
+            foreach (glob($dir . '/*') as $f) {
+                if (is_file($f) && (time() - filemtime($f)) > 86400) {
+                    @unlink($f);
+                }
+            }
+        }
+
+        $resultado = collect();
+        foreach ($imagenes as $infId => $imgs) {
+            $nuevos = [];
+            foreach ($imgs as $img) {
+                $ruta = $img->ruta_imagen;
+                if (is_string($ruta) && strpos($ruta, 'data:image/') === 0) {
+                    $pos = strpos($ruta, ',');
+                    $puntoYComa = strpos($ruta, ';');
+                    $mime = strtolower(substr($ruta, 5, $puntoYComa - 5));
+                    $ext = str_replace('image/', '', $mime);
+                    if ($ext === 'jpeg') $ext = 'jpg';
+                    if (!in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                        $ext = 'png';
+                    }
+                    $nombre = 'inf_' . $infId . '_' . md5($ruta) . '.' . $ext;
+                    $archivo = $dir . DIRECTORY_SEPARATOR . $nombre;
+                    if (!file_exists($archivo)) {
+                        @file_put_contents($archivo, base64_decode(substr($ruta, $pos + 1)));
+                    }
+                    $ruta = url('report_tmp/' . $nombre);
+                }
+                $nuevos[] = (object) [
+                    'ruta_imagen' => $ruta,
+                    'descripcion' => $img->descripcion ?? null,
+                ];
+            }
+            $resultado[$infId] = collect($nuevos);
+        }
+        return $resultado;
+    }
+
     // Fila de detalle de un informe: Artículos | Empleados | Imágenes | Descripción
     private function buildInformeDetalleHtml($idInforme, $detalles, $imagenes, $isPdf = false)
     {
@@ -1058,7 +1105,7 @@ function changeZoom(delta) {
         $imgsHtml = '';
         foreach ($imgs as $img) {
             $size = $isPdf ? 80 : 70;
-            $imgsHtml .= '<img src="' . $img->ruta_imagen . '" style="width:' . $size . 'px;height:' . $size . 'px;object-fit:cover;border:1px solid #ccc;margin:2px;">';
+            $imgsHtml .= '<img src="' . $img->ruta_imagen . '" width="' . $size . '" height="' . $size . '" style="width:' . $size . 'px;height:' . $size . 'px;object-fit:cover;border:1px solid #ccc;margin:2px;">';
         }
 
         $font = $isPdf ? 'font-size:12px;' : 'font-size:10px;';
@@ -1178,7 +1225,7 @@ function changeZoom(delta) {
 
         // Informes Diarios (con detalle: artículos, empleados, imágenes y descripción)
         $informeDetalles = $this->getEjecucionInformesDetalles($informes);
-        $imagenesInf = $this->getEjecucionInformesImagenes($request);
+        $imagenesInf = $this->materializarImagenesInforme($this->getEjecucionInformesImagenes($request));
 
         $html .= '<h3>Informes Diarios (' . $informes->count() . ' registros)</h3>';
         $html .= '<table><thead><tr><th>NOMBRE DE LA OBRA</th><th>ORDEN TRABAJO</th><th>FECHA</th><th>LUGAR</th><th>UBICACIÓN</th><th>OBSERVACIÓN</th></tr></thead><tbody>';
