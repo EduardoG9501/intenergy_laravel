@@ -33,7 +33,19 @@ class ReporteController extends Controller
             }
         }
 
-        return view('reportes.kardex');
+        $bodegaActivaId = session('bodega_seleccionada');
+        $bodegaActivaNombre = $bodegaActivaId
+            ? Bodega::where('id_bodega', $bodegaActivaId)->value('nombreBodega')
+            : null;
+
+        return view('reportes.kardex', compact('bodegaActivaId', 'bodegaActivaNombre'));
+    }
+
+    // Saldo de stock corrido por movimiento (kardex: acumulado hasta cada fila)
+    private function formatoStock($valor)
+    {
+        $valor = $valor + 0;
+        return ($valor == floor($valor)) ? number_format($valor, 0) : number_format($valor, 2);
     }
 
     private function getKardexQuery(Request $request)
@@ -59,7 +71,17 @@ class ReporteController extends Controller
                 'sp.sub_tipo_movimiento',
                 'sp.producto as articulo',
                 'sp.cantidad',
-                DB::raw("COALESCE((SELECT SUM(sb.cantidad) FROM stock_productos_bodega sb WHERE sb.id_producto = sp.id_producto AND sb.id_bodega_principal = sp.id_bodega_principal AND sb.estado = 1), 0) AS stock_actual"),
+                DB::raw("COALESCE((
+                    SELECT SUM(CASE WHEN sp2.tipo_movimiento = 'ENTRADA' THEN sp2.cantidad ELSE -sp2.cantidad END)
+                    FROM stock_productos sp2
+                    WHERE sp2.id_producto = sp.id_producto
+                      AND sp2.id_bodega_principal = sp.id_bodega_principal
+                      AND sp2.estado = 1
+                      AND (
+                        sp2.fecha_captura < sp.fecha_captura
+                        OR (sp2.fecha_captura = sp.fecha_captura AND sp2.id_stock_productos <= sp.id_stock_productos)
+                      )
+                ), 0) AS stock_actual"),
                 'sp.no_documento as documento'
             );
     }
@@ -103,7 +125,7 @@ class ReporteController extends Controller
 <h2>Entrada / Salida (Kardex)</h2>
 <div class="info">Generado: ' . date('d/m/Y H:i') . ' | Total: ' . $resultados->count() . ' registro(s)</div>
 <table>
-<thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>LUGAR</th><th>FECHA</th><th>TIPO MOVIMIENTO</th><th>SUB TIPO MOVIMIENTO</th><th>ARTICULO</th><th>CANTIDAD</th><th>STOCK ACTUAL</th><th>Nº DOCUMENTO</th></tr></thead>
+<thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>LUGAR</th><th>FECHA</th><th>TIPO MOVIMIENTO</th><th>SUB TIPO MOVIMIENTO</th><th>ARTICULO</th><th>CANTIDAD</th><th style="background:#fde047;color:#0f172a;border:1px solid #eab308;">STOCK ACTUAL</th><th>Nº DOCUMENTO</th></tr></thead>
 <tbody>';
 
         foreach ($resultados as $r) {
@@ -119,7 +141,7 @@ class ReporteController extends Controller
                 <td>' . ($r->sub_tipo_movimiento ?: '-') . '</td>
                 <td>' . $r->articulo . '</td>
                 <td>' . number_format($r->cantidad, 2) . '</td>
-                <td class="' . ($stockActual > 0 ? 'stock-pos' : 'stock-neg') . '">' . number_format($stockActual, 2) . '</td>
+                <td class="' . ($stockActual > 0 ? 'stock-pos' : 'stock-neg') . '">' . $this->formatoStock($stockActual) . '</td>
                 <td>' . $r->documento . '</td>
             </tr>';
         }
@@ -194,7 +216,7 @@ class ReporteController extends Controller
     </div>
 </div>
 <table>
-<thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>LUGAR</th><th>FECHA</th><th>TIPO MOVIMIENTO</th><th>SUB TIPO</th><th>ARTICULO</th><th>CANTIDAD</th><th>STOCK ACTUAL</th><th>Nº DOCUMENTO</th></tr></thead>
+<thead><tr><th>ID ORDEN</th><th>PROYECTO</th><th>NOMBRE DE LA OBRA</th><th>LUGAR</th><th>FECHA</th><th>TIPO MOVIMIENTO</th><th>SUB TIPO</th><th>ARTICULO</th><th>CANTIDAD</th><th style="background:#fde047;color:#0f172a;border:1px solid #eab308;">STOCK ACTUAL</th><th>Nº DOCUMENTO</th></tr></thead>
 <tbody>';
 
         foreach ($resultados as $r) {
@@ -210,7 +232,7 @@ class ReporteController extends Controller
                 <td>' . ($r->sub_tipo_movimiento ?: '-') . '</td>
                 <td>' . $r->articulo . '</td>
                 <td><strong>' . number_format($r->cantidad, 2) . '</strong></td>
-                <td class="' . ($stockActual > 0 ? 'stock-pos' : 'stock-neg') . '">' . number_format($stockActual, 2) . '</td>
+                <td class="' . ($stockActual > 0 ? 'stock-pos' : 'stock-neg') . '">' . $this->formatoStock($stockActual) . '</td>
                 <td>' . $r->documento . '</td>
             </tr>';
         }
