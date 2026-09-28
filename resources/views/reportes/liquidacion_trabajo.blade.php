@@ -32,6 +32,17 @@
     .ot-dropdown .ot-item .ot-id { font-weight: bold; color: #0d6efd; }
     .ot-dropdown .ot-item .ot-desc { color: #666; font-size: 12px; }
     .ot-dropdown .ot-empty { padding: 15px; text-align: center; color: #999; font-size: 13px; }
+
+    /* Informes diarios: detalle por informe (artículos, empleados, imágenes, descripción) */
+    .liq-informes-wrap { padding-bottom: 10px; }
+    .liq-informes-heading { display: inline-block; margin: 14px 18px 10px; font-size: 13px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 2px solid #0d6efd; padding-bottom: 3px; }
+    .liq-inf-head th { background: #0d6efd !important; color: #fff !important; border: none; font-size: 12px; font-weight: 700; text-align: center; padding: 10px 8px; }
+    .liq-inf-summary td { font-size: 13px; color: #1e293b; background: #fff; border-bottom: none; padding: 9px 10px; vertical-align: middle; }
+    .liq-inf-detail-cell { background: #f8fafc; padding: 0 !important; border-bottom: 2px solid #dbe7fb; }
+    .liq-inf-detail { width: 100%; border-collapse: collapse; margin: 0; }
+    .liq-inf-detail th { background: #eef3fb; color: #334155; font-size: 12px; font-weight: 700; text-align: left; padding: 7px 12px; border-bottom: 1px solid #dbe7fb; }
+    .liq-inf-detail td { font-size: 12.5px; color: #334155; text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid #e9eef7; background: #fff; }
+    .liq-inf-detail tr:last-child td { border-bottom: none; }
 </style>
 @endsection
 
@@ -142,13 +153,8 @@
         </h2>
         <div id="collapseInformes" class="accordion-collapse collapse" data-bs-parent="#accordionLiq">
             <div class="accordion-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr><th class="ps-3">Id Informe</th><th>Nombre De La Obra</th><th>Fecha</th><th>Lugar</th><th>Ubicación</th><th>Observación</th><th>Imágenes</th></tr>
-                        </thead>
-                        <tbody id="tbodyInformes"><tr><td colspan="7" class="text-center py-4 text-muted">Use los filtros para buscar.</td></tr></tbody>
-                    </table>
+                <div id="tbodyInformes">
+                    <div class="text-center py-4 text-muted">Use los filtros para buscar.</div>
                 </div>
             </div>
         </div>

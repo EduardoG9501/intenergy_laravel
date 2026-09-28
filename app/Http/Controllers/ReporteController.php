@@ -1433,13 +1433,14 @@ function changeZoom(delta) {
             $horas = $this->getLiqHoras($request);
             $informes = $this->getLiqInformes($request);
             $imagenes = $this->getEjecucionInformesImagenes($request);
+            $informesDetalles = $this->getEjecucionInformesDetalles($informes);
             $liquidacion = $this->getOrCreateLiquidacion($request);
             $liquidacionImagenes = $liquidacion ? $liquidacion->imagenes()->where('estado', 1)->get() : collect();
 
             return response()->json([
                 'html_materiales' => view('reportes.partials.tabla_ejecucion_materiales', compact('materiales'))->render(),
                 'html_horas' => view('reportes.partials.tabla_ejecucion_horas', compact('horas'))->render(),
-                'html_informes' => view('reportes.partials.tabla_ejecucion_informes', compact('informes', 'imagenes'))->render(),
+                'html_informes' => view('reportes.partials.tabla_liquidacion_informes', compact('informes', 'imagenes', 'informesDetalles'))->render(),
                 'mano_obra' => $liquidacion->mano_obra ?? '',
                 'importante' => $liquidacion->importante ?? '',
                 'html_imagenes_liq' => view('reportes.partials.tabla_liquidacion_imagenes', compact('liquidacionImagenes'))->render(),
