@@ -1706,18 +1706,22 @@ function changeZoom(delta) {
         }
         $html .= '</tbody></table>';
 
-        // Informes Diarios
-        $html .= '<h3>Informes Diarios (' . $informes->count() . ' registros)</h3>';
-        $html .= '<table><thead><tr><th>ID INFORME</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>UBICACION</th><th>OBSERVACION</th></tr></thead><tbody>';
+        // Informes Diarios (con detalle: artículos, empleados, imágenes y descripción)
+        $informeDetalles = $this->getEjecucionInformesDetalles($informes);
+        $imagenesInf = $this->materializarImagenesInforme($this->getEjecucionInformesImagenes($request));
+
+        $html .= '<h3>Informes Diario (' . $informes->count() . ' registros)</h3>';
+        $html .= '<table><thead><tr><th>NOMBRE DE LA OBRA</th><th>ORDEN TRABAJO</th><th>FECHA</th><th>LUGAR</th><th>UBICACION</th><th>OBSERVACION</th></tr></thead><tbody>';
         foreach ($informes as $r) {
             $html .= '<tr>
-                <td>' . $r->id_informe_diario_ejecucion . '</td>
                 <td>' . $r->obra . '</td>
+                <td>' . $r->identificador . '</td>
                 <td>' . ($r->fecha ? date('Y-m-d', strtotime($r->fecha)) : '-') . '</td>
                 <td>' . ($r->lugar ?: '-') . '</td>
                 <td>' . ($r->ubicacion ?: '-') . '</td>
                 <td>' . ($r->observacion ?: '-') . '</td>
             </tr>';
+            $html .= $this->buildInformeDetalleHtml($r->id_informe_diario_ejecucion, $informeDetalles, $imagenesInf, false);
         }
         $html .= '</tbody></table>';
 
@@ -1866,18 +1870,22 @@ function changeZoom(delta) {
         }
         $html .= '</tbody></table>';
 
-        // Informes Diarios
-        $html .= '<h3 class="section-title">Informes Diarios (' . $informes->count() . ' registros)</h3>';
-        $html .= '<table><thead><tr><th>ID INFORME</th><th>NOMBRE DE LA OBRA</th><th>FECHA</th><th>LUGAR</th><th>UBICACION</th><th>OBSERVACION</th></tr></thead><tbody>';
+        // Informes Diarios (con detalle: artículos, empleados, imágenes y descripción)
+        $informeDetalles = $this->getEjecucionInformesDetalles($informes);
+        $imagenesInf = $this->getEjecucionInformesImagenes($request);
+
+        $html .= '<h3 class="section-title">Informes Diario (' . $informes->count() . ' registros)</h3>';
+        $html .= '<table><thead><tr><th>NOMBRE DE LA OBRA</th><th>ORDEN TRABAJO</th><th>FECHA</th><th>LUGAR</th><th>UBICACION</th><th>OBSERVACION</th></tr></thead><tbody>';
         foreach ($informes as $r) {
             $html .= '<tr>
-                <td>INF-' . str_pad($r->id_informe_diario_ejecucion, 5, '0', STR_PAD_LEFT) . '</td>
                 <td>' . e($r->obra) . '</td>
+                <td>' . e($r->identificador) . '</td>
                 <td>' . ($r->fecha ? date('Y-m-d', strtotime($r->fecha)) : '-') . '</td>
                 <td>' . e($r->lugar ?: '-') . '</td>
                 <td>' . e($r->ubicacion ?: '-') . '</td>
                 <td>' . e($r->observacion ?: '-') . '</td>
             </tr>';
+            $html .= $this->buildInformeDetalleHtml($r->id_informe_diario_ejecucion, $informeDetalles, $imagenesInf, true);
         }
         $html .= '</tbody></table>';
 
