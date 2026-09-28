@@ -71,17 +71,12 @@ class ReporteController extends Controller
                 'sp.sub_tipo_movimiento',
                 'sp.producto as articulo',
                 'sp.cantidad',
-                DB::raw("COALESCE((
-                    SELECT SUM(CASE WHEN sp2.tipo_movimiento = 'ENTRADA' THEN sp2.cantidad ELSE -sp2.cantidad END)
-                    FROM stock_productos sp2
-                    WHERE sp2.id_producto = sp.id_producto
-                      AND sp2.id_bodega_principal = sp.id_bodega_principal
-                      AND sp2.estado = 1
-                      AND (
-                        sp2.fecha_captura < sp.fecha_captura
-                        OR (sp2.fecha_captura = sp.fecha_captura AND sp2.id_stock_productos <= sp.id_stock_productos)
-                      )
-                ), 0) AS stock_actual"),
+                DB::raw("COALESCE(
+                    SUM(CASE WHEN sp.tipo_movimiento = 'ENTRADA' THEN sp.cantidad ELSE -sp.cantidad END)
+                    OVER (
+                        ORDER BY sp.fecha_captura DESC, sp.id_stock_productos DESC
+                        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                    ), 0) AS stock_actual"),
                 'sp.no_documento as documento'
             );
     }
@@ -97,7 +92,8 @@ class ReporteController extends Controller
         if ($request->filled('id_orden')) {
             $query->where('ot.id_orden', $request->id_orden);
         }
-        return $query->orderBy('sp.fecha_captura', 'desc');
+        return $query->orderBy('sp.fecha_captura', 'desc')
+            ->orderBy('sp.id_stock_productos', 'desc');
     }
 
     // Exportar Kardex a Excel (HTML con imágenes)
